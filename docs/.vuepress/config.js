@@ -13,7 +13,7 @@ module.exports = {
 	},
 	"markdown": {},
 	"themeConfig": {
-		"repo": "JianDaRui/vue-next",
+		"repo": "JianDaRui/Vue-Next-NB",
 		"repoLabel": "点亮⭐不迷路",
 		"editLinks": true,
 		"docsDir": "docs",
