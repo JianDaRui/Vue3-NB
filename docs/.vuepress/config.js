@@ -1,6 +1,6 @@
 module.exports = {
-  "title": "Vue-next深入浅出",
-	"description": "Vue-next深入浅出源码解析",
+  "title": "Vue3深入浅出",
+	"description": "Vue3深入浅出源码解析",
 	"dest": "dist",
 	"serviceWorker": false,
 	"head": [
@@ -22,7 +22,7 @@ module.exports = {
 		"nav": [
 			{
 				"text": "🐂一起变强",
-				"link": "/me"
+				"link": "/about"
 			},
 		],
 		"sidebar": [
@@ -31,22 +31,36 @@ module.exports = {
 				"前言"
 			],
 			{
-				"title": "响应式",
+				"title": "第一篇 依赖收集&变化侦测",
 				"collapsable": true,
+				"path": '/reactive/', 
 				"children": [
 					{
 						"title": "第一章 Proxy响应式",
 						"children": [
 							[
-								"/reactive/index",
-								"React理念"
+								"reactive/reactive",
+								"reactive",
+							],[
+								"reactive/effect",
+								"effect",
+							],[
+								"reactive/ref",
+								"ref",
+							],[
+								"reactive/computed",
+								"computed",
+							],[
+								"reactive/baseHandlers",
+								"baseHandlers",
+							],[
+								"reactive/collectionHandlers",
+								"collectionHandlers",
 							],
 						]
 					}
 				]
 			},
-		
-	
 		]
 	},
 	"base": ""
