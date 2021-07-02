@@ -8,8 +8,6 @@ module.exports = {
 		['script', { "src": 'https://cdn.jsdelivr.net/npm/react/umd/react.production.min.js' }],
     ['script', { "src": 'https://cdn.jsdelivr.net/npm/react-dom/umd/react-dom.production.min.js' }],
     ['script', { "src": 'https://cdn.jsdelivr.net/npm/vue/dist/vue.min.js' }],
-    ['script', { "src": 'https://cdn.jsdelivr.net/npm/vue-next@0.0.1/packages/vue/dist/vue.esm-browser.js' }],
-    ['script', { "src": 'https://cdn.jsdelivr.net/npm/vue-next@0.0.1/packages/vue/dist/vue.global.js' }],
     ['script', { "src": 'https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js' }],
 	],
 	"configureWebpack": {
@@ -42,30 +40,86 @@ module.exports = {
 			{
 				"title": "第一篇 依赖收集&变化侦测",
 				"collapsable": true,
-				"path": '/reactive/', 
 				"children": [
 					{
-						"title": "第一章 Proxy响应式",
+						"title": "第一章 新旧响应式原理对比",
 						"children": [
 							[
-								"reactive/reactive",
+								"/reactive/new_vs_old/proxy",
+								"Object.defineProperty与Proxy",
+							],[
+								"/reactive/new_vs_old/module",
+								"观察者模式与代理模式",
+							],[
+								"/reactive/new_vs_old/summary",
+								"总结",
+							]
+						]
+					},
+					{
+						"title": "第二章 基本类型、对象、数组的处理",
+						"children": [
+							[
+								"/reactive/base_object_array/track",
+								"如何追踪变化track",
+							],[
+								"/reactive/base_object_array/collect",
+								"如何收集依赖",
+							],[
+								"/reactive/base_object_array/trigger",
+								"如何触发依赖trigger",
+							],[
+								"/reactive/base_object_array/who",
+								"依赖是谁",
+							],[
+								"/reactive/base_object_array/effect",
+								"什么是effect",
+							],[
+								"/reactive/base_object_array/relation",
+								"数据与依赖的关系",
+							],[
+								"/reactive/base_object_array/summary",
+								"总结",
+							]
+						]
+					},
+					{
+						"title": "第三章 Map与Set类型的处理",
+						"children": [
+							[
+								"/reactive/map_set/map&set",
+								"字典与集合",
+							],[
+								"/reactive/map_set/iterable&forEach",
+								"迭代模式&遍历模式",
+							],[
+								"/reactive/map_set/adrc",
+								"增删改查",
+							],[
+								"/reactive/map_set/summary",
+								"总结",
+							]
+						]
+					},
+					{
+						"title": "第四章 Reactive相关的API实现",
+						"children": [
+							[
+								"/reactive/api/reactive",
 								"reactive",
 							],[
-								"reactive/effect",
-								"effect",
-							],[
-								"reactive/ref",
+								"/reactive/api/ref",
 								"ref",
 							],[
-								"reactive/computed",
+								"/reactive/api/computed",
 								"computed",
 							],[
-								"reactive/baseHandlers",
-								"baseHandlers",
+								"/reactive/api/effect",
+								"effect",
 							],[
-								"reactive/collectionHandlers",
-								"collectionHandlers",
-							],
+								"/reactive/api/summary",
+								"总结",
+							]
 						]
 					}
 				]
