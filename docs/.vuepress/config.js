@@ -4,13 +4,22 @@ module.exports = {
 	"dest": "dist",
 	"serviceWorker": false,
 	"head": [
-		["script", { "src": "/assets/js/tj.js" }]
+		["script", { "src": "/assets/js/tj.js" }],
+		['script', { "src": 'https://cdn.jsdelivr.net/npm/react/umd/react.production.min.js' }],
+    ['script', { "src": 'https://cdn.jsdelivr.net/npm/react-dom/umd/react-dom.production.min.js' }],
+    ['script', { "src": 'https://cdn.jsdelivr.net/npm/vue/dist/vue.min.js' }],
+    ['script', { "src": 'https://cdn.jsdelivr.net/npm/vue-next@0.0.1/packages/vue/dist/vue.esm-browser.js' }],
+    ['script', { "src": 'https://cdn.jsdelivr.net/npm/vue-next@0.0.1/packages/vue/dist/vue.global.js' }],
+    ['script', { "src": 'https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js' }],
 	],
 	"configureWebpack": {
 		"resolve": {
 			"alias": {}
 		}
 	},
+	"plugins": [
+    'demo-block'
+  ],
 	"markdown": {},
 	"themeConfig": {
 		"repo": "JianDaRui/Vue-Next-NB",

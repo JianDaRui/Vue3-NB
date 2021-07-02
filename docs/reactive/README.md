@@ -1,1 +1,23 @@
-# Hello VuePress
+# 目录结构梳理
+
+- 新旧对比
+  - Object.defineProperty与Proxy
+  - 观察者模式与代理模式
+  - 新模式可能带来的问题
+  - 总结
+- Object与Array类型的处理
+  - 如何追踪变化track
+  - 如何收集依赖
+  - 如何触发依赖trigger
+  - 依赖是谁
+  - 什么是effect
+  - 数据与依赖的关系
+  - 总结
+- Map与Set类型的处理
+  - 迭代模式&便利模式
+  - 增删改查
+- Reactive相关的API实现
+  - reactive
+  - ref
+  - computed
+  - effect
