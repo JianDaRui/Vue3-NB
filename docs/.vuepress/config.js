@@ -60,20 +60,11 @@ module.exports = {
 						"title": "第二章 基本类型、对象、数组的处理",
 						"children": [
 							[
-								"/reactive/base_object_array/track",
-								"如何追踪变化track",
+								"/reactive/base_object_array/track&trigger",
+								"如何Track&Trigger",
 							],[
-								"/reactive/base_object_array/collect",
-								"如何收集依赖",
-							],[
-								"/reactive/base_object_array/trigger",
-								"如何触发依赖trigger",
-							],[
-								"/reactive/base_object_array/who",
-								"依赖是谁",
-							],[
-								"/reactive/base_object_array/effect",
-								"什么是effect",
+								"/reactive/base_object_array/effect&data",
+								"依赖与数据",
 							],[
 								"/reactive/base_object_array/relation",
 								"数据与依赖的关系",

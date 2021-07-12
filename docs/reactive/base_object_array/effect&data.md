@@ -1,35 +1,6 @@
-# 如何追踪变化track
-
-通过第一章我们基本对Proxy有所了解，Vue3中是如何进行track呢？内部是如何维持数据与依赖之间的关系的？
-
-
-
-```javascript
-
-function createReactiveObject(target, handlers) {
-	let proxy = new Proxy(target, handlers)
-	return proxy
-}
-const handlers = { 
-	get(target, key, receiver) {
-		const res = Reflect.get(target, key, receiver)
-		console.log("get的时候track")
-		return res;
-	}
-}
-
-let target = { name: "剑大瑞" }
-
-let proxyTarget = createReactiveObject(target, handlers)
-
-proxyTarget.name  // "get的时候track"
- 				  // "剑大瑞"
-```
-
-
+# 依赖是谁&如何维护数据与依赖的关系
 
 使用WeakMap来维持数据依赖的关系， 依赖是多个的并且是唯一的，我们可以使用Set来存储依赖，用过Map来维持对象Key与Dep的关系。
-
 
 
 ```javascript
@@ -78,4 +49,3 @@ function effectFunc() {
 }
 console.log(targetMap);
 ```
-
