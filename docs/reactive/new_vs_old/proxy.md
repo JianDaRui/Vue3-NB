@@ -222,13 +222,13 @@ console.log(Object.getOwnPropertyNames(p)); // "called"
 
 ### 针对`Map`、`Set`类型
 
-​		在Vue2并不支持Map、Set、WeakMap、WeakSet类型。这次Vue3做到了。Vue3中调用针对Map、Set类型的方法做了一些特殊的处理，在后面的章节我们会详细讲解一下。这里我们先回顾下Map、Set类型的方法。
+​		在Vue2并不支持Map、Set、WeakMap、WeakSet类型。这次Vue3做到了。Vue3中针对通过Proxy创建Map、Set类型代理方法的handler参数做了一些特殊的处理，先挖一个坑，在后面的章节我们会详细讲解一下。这里我们先回顾下Map、Set类型的方法。[传送门](https://es6.ruanyifeng.com/#docs/set-map)
 
 #### Set
 
 ##### 实例属性和方法：
 
-- size()
+- size() 
 
 - add()
 
@@ -277,18 +277,22 @@ console.log(Object.getOwnPropertyNames(p)); // "called"
 
 - set
 - get
-- has
+- [has]()
 - delete
 
-
-
-
-
-
-
-
-
-
+```javascript
+let rowTarget = [1,2,3,4,5,6]
+let target = new Set(rowTarget)
+const handler = {
+    get size() {
+		return size(this)
+    }
+    add: function(value) {
+        rowTarget.add(value)
+	}
+}
+let proxy = new Proxy(target, handler)
+```
 
 
 
