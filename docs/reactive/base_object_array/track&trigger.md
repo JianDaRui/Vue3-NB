@@ -7,7 +7,6 @@
 target通过proxy代理后，产生一个proxy实例，这个实例用于与target相同的接口，当我们通过proxy读取数据时，会触发Getter函数，当设置新的值时，会触发Setter函数。故可以通过Getter函数进行Track。
 
 ```javascript
-
 function createReactiveObject(target, handlers) {
 	let proxy = new Proxy(target, handlers)
 	return proxy
@@ -46,7 +45,7 @@ proxyTarget.name  // "get的时候track"
 </template>
 ```
 
-模板中name是通过proxy代理产生的，当proxy.name赋新值时，会触发Setter，这时需要动态的去更新DOM，故在Setter中可以做一些依赖的触发操作。
+模板中name是通过Proxy代理产生的，当proxy.name赋新值时，会触发Setter，这时需要动态的去更新DOM，故在Setter中可以做一些依赖的触发操作。
 
 ```javascript
 function track(target, key) {
@@ -80,8 +79,6 @@ let proxyTarget = createReactiveObject(target, handlers)
 proxyTarget.name  // "track"
 proxyTarget.name = "Jiandarui" // "trigger"
 ```
-
-
 
 
 

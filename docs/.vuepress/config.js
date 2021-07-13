@@ -67,7 +67,7 @@ module.exports = {
 								"依赖与数据",
 							],[
 								"/reactive/base_object_array/relation",
-								"数据与依赖的关系",
+								"对象与数组",
 							],[
 								"/reactive/base_object_array/summary",
 								"总结",
