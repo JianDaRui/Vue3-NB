@@ -5,10 +5,8 @@
   - 观察者模式与代理模式
   - 总结
 - Object与Array类型的处理
-  - 如何追踪变化track
-  - 如何收集依赖
-  - 如何触发依赖trigger
-  - 依赖是谁
+  - 如何Track&Trigger
+  - 依赖与数据
   - 什么是effect
   - 数据与依赖的关系
   - 总结
