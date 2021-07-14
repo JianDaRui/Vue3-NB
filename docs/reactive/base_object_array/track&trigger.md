@@ -80,5 +80,5 @@ proxyTarget.name  // "track"
 proxyTarget.name = "Jiandarui" // "trigger"
 ```
 
-
+通过上面的代码示例，我们可以知道，Vue3内部，会在Getter函数中进行track，在Setter函数中进行trigger。上面我们并没有研究这两个关键函数的内部实现，下一小节我们一起研究下现在的响应式是如何处理数据与依赖的？track与trigger的内部实现的细节有哪些？
 
