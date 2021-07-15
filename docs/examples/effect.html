@@ -45,9 +45,7 @@
         const add = (effectsToAdd) => {
           if (effectsToAdd) {
             effectsToAdd.forEach((effect) => {
-              // if (effect !== activeEffect) {
                 effects.add(effect)
-              // }
             })
           }
         }
@@ -58,7 +56,6 @@
         const run = (effect) => {
           effect()
         }
-
         // 遍历执行所有的effect;
         effects.forEach(run)
       }
@@ -75,6 +72,7 @@
           return res
         },
         set(target, key, newValue, receiver) {
+          debugger
           const res = Reflect.set(target, key, newValue, receiver)
           trigger(target, key, newValue)
           return res

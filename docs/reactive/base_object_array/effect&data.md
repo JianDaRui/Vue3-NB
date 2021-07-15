@@ -93,7 +93,7 @@ function createReactiveEffect(fn, options) {
   effect.allowRecurse = !!options.allowRecurse
   effect._isEffect = true
   effect.active = true
-  effect.raw = fn
+  effect.raw = fn // 用来保存原函数
   effect.deps = []
   effect.options = options
   return effect
@@ -101,6 +101,30 @@ function createReactiveEffect(fn, options) {
 ```
 
 effect正是通过createReactiveEffect函数创建的，重点在于`effect.deps = []`，它与watcher.deps相同，负责维护与当前effect相关的所有dep。
+
+
+
+```javascript
+function createReactiveEffect(fn, options) {
+  const effect = function reactiveEffect() {
+    if(!effect.active) {
+		return fn()
+    }
+  }
+  effect.id = uid++
+  effect._isEffect = true
+  effect.active = true
+  effect.raw = fn
+  effect.deps = []
+  effect.options = options
+  return effect
+}
+function effect(fn, options) {
+	const effect = createReactiveEffect(fn, options)
+    
+    return effect;
+}
+```
 
 ## 如何维护依赖与数据的关系
 
@@ -243,92 +267,4 @@ function trigger(target, key, newValue) {
     effects.forEach(run);
 }
 ```
-
-
-
-```javascript
-const targetMap = new WeakMap()
-
-function track(target, key) {
-    // 首先尝试获取target对应的所有依赖
-	let depsMap = targetMap.get(target)
-    if(!depsMap) {
-        // 如果没有，则创建
-        depsMap = new Map()
-        targetMap.set(target, depsMap)
-     }
-     // 获取target[key]对应的所有依赖
-    let dep = depsMap.get(key)
-    if(!dep) {
-       // 如果没有，则创建
-       dep = new Set()
-       depsMap.set(key, dep)
-     }
-    
-    if(!dep.has(activeEffect)) {
-       // 添加effect
-       dep.add(activeEffect)
-       // 添加dep至相关的effect
-       activeEffect.deps.push(dep)
-     }
-}
-
-function trigger(target, key, newValue) {
-	const depsMap = targetMap.get(target)
-    if(!depsMap) {
-        // 说明还没有进行过track
-        return 
-    }
-    const effects = new Set();
-    const add = effectsToAdd => {
-        if(effectsToAdd) {
-            effectsToAdd.forEach(effect => {
-               	effects.add(effect)
-            })
-        }
-    }
-    
-    const effectsToAdd = depsMap.get(key)
-    add(effectsToAdd);
-    
-    const run = effect => {
-        effect()
-    }
-    
-    // 遍历执行所有的effect;
-    effects.forEach(run);
-}
-
-function createReactiveObject(target, handlers) {
-	let proxy = new Proxy(target, handlers)
-	return proxy
-}
-
-const handlers = { 
-	get(target, key, receiver) {
-		const res = Reflect.get(target, key, receiver)
-		track(target, key);
-		return res;
-	},
-    set(target, key, newValue, receiver) {
-        const res = Reflect.set(target, key, newValue, receiver);
-        trigger(target, key, newValue)
-        return res
-	}
-}
-
-let target = { name: "剑大瑞" }
-
-function activeEffect() {
-    console.log("DOM更新")
-}
-activeEffect.deps = [];
-
-let proxyTarget = createReactiveObject(target, handlers)
-
-proxyTarget.name  
-proxyTarget.name = "Jiandarui"
-```
-
-
 
