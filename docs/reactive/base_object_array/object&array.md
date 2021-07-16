@@ -120,23 +120,191 @@ proxyArr.splice(2,3,4)
 >
 > 大概意思是当通过watchEffect观察数组时，发生了死递归
 
-
-
-这几个方法，在调用的时候都会触发length属性，
+那Vue3是如何解决这个问题的呢？源码：
 
 ```typescript
+// path: packages > reactivity > src > baseHandlers
 ;(['push', 'pop', 'shift', 'unshift', 'splice'] as const).forEach(key => {
   const method = Array.prototype[key] as any
   arrayInstrumentations[key] = function(this: unknown[], ...args: unknown[]) {
+    // 暂停track
     pauseTracking()
     const res = method.apply(this, args)
+    // 恢复track
     resetTracking()
     return res
   }
 })
+
+// path: packages > reactivity > src > effect
+// 用于控制track函数
+let shouldTrack = true
+const trackStack: boolean[] = []
+export function pauseTracking() {
+  trackStack.push(shouldTrack)
+  shouldTrack = false
+}
+
+export function enableTracking() {
+  trackStack.push(shouldTrack)
+  shouldTrack = true
+}
+
+export function resetTracking() {
+  const last = trackStack.pop()
+  shouldTrack = last === undefined ? true : last
+}
+
+// 完整的track函数
+export function track(target: object, type: TrackOpTypes, key: unknown) {
+  // 如果是数组方法：push、pop、shift、unshift、splice。shouldTrack为false, 直接返回
+  if (!shouldTrack || activeEffect === undefined) {
+    return
+  }
+  let depsMap = targetMap.get(target)
+  if (!depsMap) {
+    targetMap.set(target, (depsMap = new Map()))
+  }
+  let dep = depsMap.get(key)
+  if (!dep) {
+    depsMap.set(key, (dep = new Set()))
+  }
+  if (!dep.has(activeEffect)) {
+    dep.add(activeEffect)
+    activeEffect.deps.push(dep)
+    if (__DEV__ && activeEffect.options.onTrack) {
+      activeEffect.options.onTrack({
+        effect: activeEffect,
+        target,
+        type,
+        key
+      })
+    }
+  }
+}
+
+
+function createGetter(isReadonly = false, shallow = false) {
+  return function get(target: Target, key: string | symbol, receiver: object) {
+   	// 省略了无关代码...
+    const targetIsArray = isArray(target)
+    if (!isReadonly && targetIsArray && hasOwn(arrayInstrumentations, key)) {
+      // 使用改写后的数组方法
+      return Reflect.get(arrayInstrumentations, key, receiver)
+    }   
+}
 ```
 
+从源码可以看出：
 
+- 设置一个track栈，通过pauseTracking、enableTracking、resetTracking进行track状态的管理。
+- 针对push、pop、shift、unshift、splice操作数组时，先调用pauseTracking，暂停track
+- 调用数组原型方法获取结果，调用resetTracking恢复shouldTrack。
+- 只进行最后一次track，并返回结果
+
+可以看下管理状态之后的代码
+
+```js
+function createReactiveObject(target, handlers) {
+  let proxy = new Proxy(target, handlers)
+  return proxy
+}
+const targetMap = new WeakMap()
+
+function track(target, key) {
+  if (!shouldTrack) {
+    return
+  }
+  console.log('-------track-------')
+  // 首先尝试获取target对应的所有依赖
+  let depsMap = targetMap.get(target)
+  if (!depsMap) {
+    // 如果没有，则创建
+    depsMap = new Map()
+    targetMap.set(target, depsMap)
+  }
+  // 获取target[key]对应的所有依赖
+  let dep = depsMap.get(key)
+  if (!dep) {
+    // 如果没有，则创建
+    dep = new Set()
+    depsMap.set(key, dep)
+  }
+  if (!dep.has(activeEffect)) {
+    // 添加effect
+    dep.add(activeEffect)
+    // 添加dep至相关的effect
+    activeEffect.deps.push(dep)
+  }
+}
+
+function trigger(target, key, newValue, oldValue) {
+  console.log('trigger')
+}
+
+const handlers = {
+  get(target, key, receiver) {
+    const res = Reflect.get(arrayInstrumentations, key, receiver)
+    track(target, key)
+    // 查看触发情况
+    console.log(`get:${key}`)
+    return res
+  },
+  set(target, key, newValue, receiver) {
+    const res = Reflect.set(target, key, newValue, receiver)
+    trigger(target, key, newValue)
+    console.log(`set:${key}`)
+    return res
+  },
+}
+
+const arrayInstrumentations = {}
+;['push', 'pop', 'shift', 'unshift', 'splice']forEach((key) => {
+  const method = Array.prototype[key]
+  arrayInstrumentations[key] = function (thisArgs = [], ...args) {
+    // 暂停track
+    pauseTracking()
+    const res = method.apply(thisArgs, args)
+    // 恢复track
+    resetTracking()
+    return res
+  }
+})
+
+// 用于控制track函数
+let shouldTrack = true
+const trackStack = []
+function pauseTracking() {
+  trackStack.push(shouldTrack)
+  shouldTrack = false
+}
+function resetTracking() {
+  const last = trackStack.pop()
+  shouldTrack = last === undefined ? true : last
+}
+
+function activeEffect() {
+  console.log('DOM更新')
+}
+activeEffect.deps = []
+let arr = [1, 2, 3]
+let proxyArr = createReactiveObject(arr, handlers)
+proxyArr.push(4)
+proxyArr.pop()
+proxyArr.shift()
+proxyArr.unshift(5)
+proxyArr.splice(2,3,4)
+//  -------track-------
+//  get:push
+//  -------track-------
+//  get:pop
+//  -------track-------
+//  get:shift
+//  -------track-------
+//  get:unshift
+//  -------track-------
+//  get:splice
+```
 
 
 
