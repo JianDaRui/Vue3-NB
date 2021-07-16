@@ -230,11 +230,11 @@ proxyTarget.name = "Jiandarui"
 
 <img :src="$withBase('/img/data_effect.svg')" width="600" height="auto" style="margin: 0 auto;" alt="effect">
 
-通过上面的代码 & 结构图，我们基本将data与effect的关系梳理清楚了。不要忘记的是每一个effect都有一个deps属性，用于存储与之相关的所有dep。
+通过上面的代码 & 结构图，我们基本将data与effect的关系梳理清楚了。不要忘记的是每一个effect都有一个deps属性，用于存储其所在的dep。
 
 ## 触发所有依赖
 
-但data发生变化的时候，会触发trigger，这里我们给trigger函数传入target、key、newValue作为参数。
+但data发生变化的时候，会触发trigger。因为每次trigger，需要明确是哪个key触发的effect。所以这里我们给trigger函数传入target、key、newValue作为参数。
 
 如果key对应的value发生变化，这需要通过target、key获取到所有的effect，并执行。
 
@@ -267,4 +267,95 @@ function trigger(target, key, newValue) {
     effects.forEach(run);
 }
 ```
+
+上面的代码基本实现了一个简版的trigger函数，可以看出每次trigger的思路：根据target获取对应的depsMap，根据key获取对应的dep，将dep放入新的Set。最后遍历执行所有的effect。
+
+整体代码：
+
+```js
+const targetMap = new WeakMap()
+
+function track(target, key) {
+  // 首先尝试获取target对应的所有依赖
+  let depsMap = targetMap.get(target)
+  if (!depsMap) {
+    // 如果没有，则创建
+    depsMap = new Map()
+    targetMap.set(target, depsMap)
+  }
+  // 获取target[key]对应的所有依赖
+  let dep = depsMap.get(key)
+  if (!dep) {
+    // 如果没有，则创建
+    dep = new Set()
+    depsMap.set(key, dep)
+  }
+  if (!dep.has(activeEffect)) {
+    // 添加effect
+    dep.add(activeEffect)
+    // 添加dep至相关的effect
+    activeEffect.deps.push(dep)
+  }
+}
+
+function trigger(target, key, newValue) {
+  const depsMap = targetMap.get(target)
+  if (!depsMap) {
+    // 说明还没有进行过track
+    return
+  }
+  const effects = new Set()
+  const add = (effectsToAdd) => {
+    if (effectsToAdd) {
+      effectsToAdd.forEach((effect) => {
+          effects.add(effect)
+      })
+    }
+  }
+  const effectsToAdd = depsMap.get(key)
+  add(effectsToAdd)
+  const run = (effect) => {
+    effect()
+  }
+  // 遍历执行所有的effect;
+  effects.forEach(run)
+}
+
+function createReactiveObject(target, handlers) {
+  let proxy = new Proxy(target, handlers)
+  return proxy
+}
+
+const handlers = {
+  get(target, key, receiver) {
+    const res = Reflect.get(target, key, receiver)
+    track(target, key)
+    return res
+  },
+  set(target, key, newValue, receiver) {
+    debugger
+    const res = Reflect.set(target, key, newValue, receiver)
+    trigger(target, key, newValue)
+    return res
+  },
+}
+let target = { name: '剑大瑞' }
+function activeEffect() {
+  console.log('DOM更新了')
+}
+activeEffect.deps = []
+let proxyTarget = createReactiveObject(target,handlers)
+console.log(proxyTarget.name)
+proxyTarget.name = 'Jiandarui'
+```
+
+## 总结
+
+通过上面三节我们梳理清楚了Vue3的响应式原理：
+
+- 通过Proxy对原始对象进行代理，通过handler去拦截操作。
+- 在Getter函数中进行track。为每个key收集对应的依赖
+- 在Setter函数中进行trigger。根据操作的具体key获取对应所有effect，并且执行effect函数
+- 并且为每一个effect函数都维护了一个deps。用于维护与当前effect相关的所有dep。
+- 可以看出在Vue3中effect与dep也是一种多对多的关系。
 
