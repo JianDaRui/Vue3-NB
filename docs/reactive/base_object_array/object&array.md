@@ -216,26 +216,7 @@ function track(target, key) {
     return
   }
   console.log('-------track-------')
-  // 首先尝试获取target对应的所有依赖
-  let depsMap = targetMap.get(target)
-  if (!depsMap) {
-    // 如果没有，则创建
-    depsMap = new Map()
-    targetMap.set(target, depsMap)
-  }
-  // 获取target[key]对应的所有依赖
-  let dep = depsMap.get(key)
-  if (!dep) {
-    // 如果没有，则创建
-    dep = new Set()
-    depsMap.set(key, dep)
-  }
-  if (!dep.has(activeEffect)) {
-    // 添加effect
-    dep.add(activeEffect)
-    // 添加dep至相关的effect
-    activeEffect.deps.push(dep)
-  }
+  // 省略部分代码
 }
 
 function trigger(target, key, newValue, oldValue) {
