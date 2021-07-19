@@ -197,7 +197,7 @@ function createGetter(isReadonly = false, shallow = false) {
 
 从源码可以看出：
 
-- 设置一个track栈，通过pauseTracking、enableTracking、resetTracking进行track状态的管理。
+- 设置一个track栈来记录能否track，通过pauseTracking、enableTracking、resetTracking进行track状态的管理。
 - 针对push、pop、shift、unshift、splice操作数组时，先调用pauseTracking，暂停track
 - 调用数组原型方法获取结果，调用resetTracking恢复shouldTrack。
 - 只进行最后一次track，并返回结果
@@ -287,11 +287,272 @@ proxyArr.splice(2,3,4)
 //  get:splice
 ```
 
+经过shouldTrack判断之后，可以避免掉许多无用或重复的 track。
+
+## 对象的深浅代理
+
+### Proxy代理下的对象
+
+```js
+let obj = {
+    name: "剑大瑞",
+    hobby: {
+       one: "篮球",
+       two: "游泳"
+    }
+}
+let handler = {
+    get(target, key, receiver) {
+        console.log(`get：${key}`)
+        return Reflect.get(target, key, receiver)
+    },
+    set(target, key, value, receiver) {
+        console.log(`set：${key}`)
+        Reflect.set(target, key, value, receiver)
+    }
+}
+let proxyObj = new Proxy(obj, handler)
+proxyObj.name
+// get: name
+// 剑大瑞
+proxyObj.name = "jiandarui"
+// set: name
+// jiandarui
+proxyObj.hobby.one
+// get: hobby
+// 篮球
+proxyObj.hobby.one = "basketball"
+// get: hobby
+// basketball
+```
+
+上面的代码中，我们明明通过 proxyObj.hobby.one = "basketball"，赋予新值，但handler只拦截到了hobby属性的getter操作。
+
+如果obj中key对应的value为Object类型，则Proxy只能进行单层的拦截。这并不是我们期望的。
+
+如果我们遇到如下场景：
+
+```html
+<div>{{proxyObj.hobby.one}}</div>
+```
+
+当 proxyObj.hobby.one 发生变化以后，我们期望DOM进行更新。由于proxyObj只进行了单层的代理，hobby并没有经过Proxy转为响应式。则会导致更新失败。
+
+### 递归转换为响应式
+
+这里就需要我们改写getter函数
+
+- 在get的时候去判断获取的value是否为Object
+- 如果是Object，则再次进行一次Reactive
+
+```js
+function createGetter() {
+  return function get(target, key， receiver) {
+    const targetIsArray = isArray(target)
+    if (targetIsArray && hasOwn(arrayInstrumentations, key)) {
+      return Reflect.get(arrayInstrumentations, key, receiver)
+    }
+    const res = Reflect.get(target, key, receiver)
+
+    if (isObject(res)) {
+      // 如果为对象类型，则进行深层次转换
+      reactive(res)
+    }
+    return res
+  }
+}
+```
+
+- 既然有需要进行深度转换的target。那就只需要进行浅层转换的target。
+
+- 我们可以通过传参来判断是否需要进行深度转换。
+
+```js
+function createGetter(shallow = false) {
+  return function get(target, key， receiver) {
+    const targetIsArray = isArray(target)
+    if (targetIsArray && hasOwn(arrayInstrumentations, key)) {
+      return Reflect.get(arrayInstrumentations, key, receiver)
+    }
+    const res = Reflect.get(target, key, receiver)
+	if(shallow) {
+       // 浅响应式
+       return res
+    }
+    if (isObject(res)) {
+      // 如果为对象类型，则进行深层次转换
+      reactive(res)
+    }
+    return res
+  }
+}
+```
+
+如果是浅响应式，则Setter函数也许改写：
+
+```js
+function createSetter(shallow = false) {
+  return function set(target, key, value, receiver) {
+    let oldValue = target
+    if (!shallow) {
+      // 如果为深度相应模式，这需要找到value与oldValue的原始值，进行修改
+      value = toRaw(value)
+      oldValue = toRaw(oldValue)
+      if (!isArray(target)) {
+        oldValue.value = value
+        return true
+      }
+    } else {
+      // in shallow mode, objects are set as-is regardless of reactive or not	// 在浅层响应模式中，不管是否是响应式，对象都被设置为原始值，故不许操作，else内没有代码
+    }	
+    // 省略的代码...
+  }
+}
+```
+
+- 创建一个shallowReactiveMap用于保存浅层相应的对象
+- 创建一个shallowReactiveHandlers用于做浅层拦截操作
+- 创建一个shallowReactive用户做浅层响应式的转换
+
+```js
+// utils
+const extend = Object.assign
+// 创建shallowHandlers
+const shallowGet = createGetter(true)
+const shallowSet = createSetter(true)
+export const shallowReactiveHandlers= extend(
+  {},
+  mutableHandlers,
+  {
+    get: shallowGet,
+    set: shallowSet
+  }
+)
+// 浅响应式创建函数：返回原始对象的浅响应副本，只有root层是相应的，即使在root级别，它也能展开引用,。
+export function shallowReactive<T extends object>(target: T): T {
+  return createReactiveObject(
+    target,
+    false,
+    shallowReactiveHandlers,
+    shallowReactiveMap
+  )
+}
+```
 
 
-## 浅层
 
-## 只读
+## 只读响应式
 
-## 
+某些场景中我们希望响应式的对象可读不可改，则意味着我们可以在handler的修改操作：set函数、delete函数中抛出异常，拦截修改操作。
+
+- 给get函数传递一个参数： *isReadonly*，用于判断是否只读
+- 如果*isReadonly*为true，则target为**非响应式**，不需要进行track
+- 对于数组类型，不需要使用改写后的方法
+- 在set函数、delete函数中需要抛出异常
+
+为完成这些需求，需要：
+
+- 设置一个readonlyMap来记录只读响应对象
+- 设置一个readonly函数用于创建只读的响应式代理
+- 设置一个readonlyHandlers来进行只读操作的拦截
+
+代码:
+
+```js
+// createGetter函数增加参数
+function createSetter(isReadonly = false, shallow = false) {
+  // 省略的代码...
+}
+// 创建 readonlyHandlers
+const readonlyGet = createGetter(true)
+export const readonlyHandlers = {
+  get: readonlyGet,
+  set(target, key) {
+    if (__DEV__) {
+      // 开发环境抛出异常
+      console.warn(
+        `Set operation on key "${String(key)}" failed: target is readonly.`,
+        target
+      )
+    }
+    // 正式环境，并不会去进行set操作，tigger操作
+    return true
+  },
+  deleteProperty(target, key) {
+    if (__DEV__) {
+      // 开发环境抛出异常
+      console.warn(
+        `Delete operation on key "${String(key)}" failed: target is readonly.`,
+        target
+      )
+    }
+    // 正式环境，并不会去进行set操作，tigger操作
+    return true
+  }
+}
+// 新增
+export const readonlyMap = new WeakMap()
+export function readonly (target) {
+  return createReactiveObject(target, true, readonlyHandlers, readonlyMap)
+}
+
+// 改写 createReactiveObject 函数
+function createReactiveObject(target, isReadonly, baseHandlers, proxyMap) {
+  if (!isObject(target)) {
+    if (__DEV__) {
+      console.warn(`value cannot be made reactive: ${String(target)}`)
+    }
+    return target
+  }
+  // target已经是代理了，则直接返回
+  // 在一个reactive对象上调用readonly()的情况除外
+  if (
+    target[ReactiveFlags.RAW] &&
+    !(isReadonly && target[ReactiveFlags.IS_REACTIVE])
+  ) {
+    return target
+  }
+  // target已经经过Proxy，直接返回
+  const existingProxy = proxyMap.get(target)
+  if (existingProxy) {
+    return existingProxy
+  }
+  const proxy = new Proxy(target, baseHandlers)
+  proxyMap.set(target, proxy)
+  return proxy
+}
+
+```
+
+## 浅层只读响应式
+
+
+
+```js
+// 创建 shallowReadonlyHandlers
+const shallowReadonlyGet = createGetter(true, true)
+export const shallowReadonlyHandlers = extend(
+  {},
+  // 复用readonlyHandlers
+  readonlyHandlers,
+  {
+    get: shallowReadonlyGet
+  }
+)
+
+// 创建浅层只读函数
+export const shallowReadonlyMap = new WeakMap()
+// 返回原始对象的响应式副copy，其中只有root级别属性为只读属性，并且不展开引用，也不递归地转换返回的属性。可用于创建有状态组件的属性代理对象。
+export function shallowReadonly(target){
+  return createReactiveObject(
+    target,
+    true,
+    shallowReadonlyHandlers,
+    shallowReadonlyMap
+  )
+}
+
+```
+
+
 
