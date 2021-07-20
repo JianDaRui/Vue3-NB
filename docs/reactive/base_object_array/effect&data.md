@@ -333,7 +333,6 @@ const handlers = {
     return res
   },
   set(target, key, newValue, receiver) {
-    debugger
     const res = Reflect.set(target, key, newValue, receiver)
     trigger(target, key, newValue)
     return res
