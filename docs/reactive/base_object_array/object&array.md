@@ -553,5 +553,11 @@ export function shallowReadonly(target){
 }
 ```
 
+## 总结
+
+由于Proxy对于数组类型的拦截会触发多次handler，vue3为了避免某些场景下会出现死循环，针对Array对会改变自身的方法做了一层单独的处理，最终在get或者set时给Reflect传递的第一个参数并不是target，而是改写之后的对象arrayInstrumentations。
+
+Proxy针对对象只能做单层拦截的情况，通过传递参数来判断是否需要进行深层次的响应进行处理，如果需要，则会在getter函数中通过判断返回值得类型再次进行响应代理转换。
+
 
 
