@@ -226,72 +226,196 @@ console.log(Object.getOwnPropertyNames(p)); // "called"
 
 #### Set
 
-##### 实例属性和方法：
+- 类似数组，成员唯一，没有重复的值
 
-- size() 
+##### 实例属性：
 
-- add()
+- size：返回Set实例成员总数
 
-- has()
+```js
+let set = new Set([1,2,3])
+set.size // 3
+```
 
-- delete()
+##### 实例方法
 
-- clear()
+- add(value)：给实例添加某个值，返回Set结构本身
+
+- has()：返回一个boolean值，表示该值是否为Set实例成员
+
+- delete(value)：删除某个值
+
+- clear()：清楚所有成员，没有返回值
+
+```js
+// add
+set.add('a').add('b')
+
+// has
+set.has(1)
+
+// delete
+set.size // 5
+set.delete('b')
+set.size // 4
+
+// clear
+set.size // 4
+set.clear()
+set.size // 0
+```
 
 ##### 遍历操作
 
-- keys()
+- keys()：返回键名的遍历器
 
-- values()
+- values()：返回键值的遍历器
+- entries()：返回键值对的遍历器
+- forEach()：使用回调函数遍历每个成员，类似于Array.prototype.forEach()，本质是一个遍历器模式
 
-- entries()
+```js
+// keys
+let set = new Set(['a', 'b', 'c']);
+console.log([...set.keys()]) // ['a', 'b', 'c']
 
-- forEach()
+// values
+console.log([...set.values()]) // ['a', 'b', 'c']
+// entries
+console.log([...set.entries()]) // [['a', 'a'], ['b', 'b'], ['c', 'c']]
+// forEach
+set.forEach(value => console.log(value))
+```
 
 #### WeakSet
 
-- size
-- has
-- add
-- delete
+##### 特点
+
+- 成员只能是对象
+- 对成员保持的都是弱引用
+- 因为弱引用的关系，成员随时可能被垃圾回收机制回收，故不可遍历
+
+##### 实例方法
+
+- add(value)：向 WeakSet 实例添加一个新成员。
+- has(value)：返回一个布尔值，表示某个值是否在.
+- delete(value)：清除 WeakSet 实例的指定成员。
+
+```js
+let a = [1, 'a'], b = [2, 'b'], c = [3, 'c'];
+let weak_set = new WeakSet();
+// add 
+weak_set.add(a)
+weak_set.add(b)
+
+// has
+weak_set.has(c) // false
+
+// delete
+weak_set.delete(b)
+weak_set.has(b) // false
+```
 
 #### Map
 
-##### 实例属性和方法
+##### 特点
 
-- size
-- set
-- get
-- has
-- delete
-- clear
+- 类似于字典，本质是键值对的集合
+- 相较于Object将key转为字符串，Map不会对添加成员的key进行转换
+- key唯一
+
+##### 实例属性
+
+- size：返回实例成总数量
+- set(key, value)：为实例添加成员
+- get(key)：返回key对应的value，没有对应的key，则返回undefined
+- has(key)：返回一个boolean值，表示key是否在当前Map实例中
+- delete(key)：删除Map实例的某个键，返回true，如果删除失败，返回false
+- clear()：清除Map实例所有成员，没有返回值。
+
+```js
+const map = new Map();
+// size 
+map.size // 0
+
+// set
+map.set('a', true);
+map.set('b', false);
+map.size // 2
+
+// get
+let obj = {name: "jiandarui" }
+map.get(obj) // undefined
+map.set(obj, { age: 18 })
+
+// has
+map.has(obj) // true
+
+// delete
+map.delete(obj) 
+map.has(obj) // false
+
+// clear
+map.clear()
+map.size // 0
+```
 
 ##### 遍历方法
 
-- keys
-- values
-- entries
-- forEach
+- keys()：返回实例键名的遍历器。
+- values()：返回实例键值的遍历器。
+- entries()：返回实例所有成员的遍历器。
+- forEach()：与Set.prototype.forEach()相似，遍历 Map 的所有成员。
+
+```js
+const map = new Map([
+  ['name', 'JDR'],
+  ['age',  18],
+]);
+// keys
+console.log([...map.keys()]); // ['name', 'age']
+
+// values
+console.log([...map.values()]); // ['JDR', 18]
+
+// entries
+console.log([...map.entries()]); // [['name', 'JDR'], ['age',  18]]
+
+// forEach
+map.forEach(function(value, key, map) {
+  console.log("Key: %s, Value: %s", key, value);
+});
+```
 
 #### WeakMap
 
-- set
-- get
-- [has]()
-- delete
+##### 特点
+
+- 类似于Map，键名只接受对象类型（null除外）
+- 对键名保持弱引用
+- 不可遍历
+
+##### 方法
+
+- set(key, value)：给实例添加成员
+- get(key)：获取实例key对应的value
+- has(key)：判断实例是否有成员key
+- delete(key)：删除实例对应的key
 
 ```javascript
-let rowTarget = [1,2,3,4,5,6]
-let target = new Set(rowTarget)
-const handler = {
-    get size() {
-		return size(this)
-    }
-    add: function(value) {
-        rowTarget.add(value)
-	}
-}
-let proxy = new Proxy(target, handler)
+const weak_map = new WeakMap();
+const key = {name: 'JDR'};
+
+// set
+weak_map.set(key, 1);
+
+//get
+weak_map.get(key) // 1
+
+// has
+weak_map.has(key) // true
+
+// delete
+weak_map.delete(key) // true
 ```
 
 
