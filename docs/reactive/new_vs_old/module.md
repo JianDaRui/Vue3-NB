@@ -67,6 +67,7 @@ sub.notify();
 
 ### Vue2中的观察者模式
 
+<img :src="$withBase('/img/define_reactive.png')" width="600" height="auto" alt="代理模式">
 Vue2中 数据就是我们要观察的对象，Watcher就是依赖，而Dep只是负责对watcher的收集和派发。
 
 Vue2中watcher也是目标数据。它与Dep是一种多对多的关系，而不是一对多。
