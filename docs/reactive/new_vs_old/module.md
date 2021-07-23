@@ -84,11 +84,6 @@ class Observer {
     this.dep = new Dep()
     def(value, '__ob__', this)
     if (Array.isArray(value)) {
-      if (hasProto) {
-        protoAugment(value, arrayMethods)
-      } else {
-        copyAugment(value, arrayMethods, arrayKeys)
-      }
       this.observeArray(value)
     } else {
       this.walk(value)
@@ -142,13 +137,7 @@ function observe (value, asRootData){
 - 进行依赖收集、状态派发
 
 ```js
-function defineReactive (
-  obj,
-  key,
-  val,
-  customSetter,
-  shallow
-) {
+function defineReactive (obj, key, val, customSetter, shallow) {
   const dep = new Dep()
 
   const property = Object.getOwnPropertyDescriptor(obj, key)
@@ -158,9 +147,7 @@ function defineReactive (
 
   const getter = property && property.get
   const setter = property && property.set
-  if ((!getter || setter) && arguments.length === 2) {
-    val = obj[key]
-  }
+
   // 递归观察val
   let childOb = !shallow && observe(val)
   Object.defineProperty(obj, key, {
@@ -183,7 +170,6 @@ function defineReactive (
     },
     set: function reactiveSetter (newVal) {
       const value = getter ? getter.call(obj) : val
-      
       if (newVal === value || (newVal !== newVal && value !== value)) {
         return
       }
@@ -247,7 +233,8 @@ Dep.target = null
 ### Watcher
 
 - 真正的依赖
-- 
+- 维护dep与watcher多对多的关系
+- 返回新值
 
 ```js
 const targetStack = []
@@ -262,7 +249,6 @@ function popTarget () {
   Dep.target = targetStack[targetStack.length - 1]
 }
 
-let uid = 0
 class Watcher {
   constructor (vm, expOrFn, cb, options, isRenderWatcher) {
     this.vm = vm
@@ -276,19 +262,14 @@ class Watcher {
       this.deep = !!options.deep
       this.user = !!options.user
       this.lazy = !!options.lazy
-      this.before = options.before
     }
     this.cb = cb
-    this.id = ++uid 
     this.active = true
     this.dirty = this.lazy 
-      
+
     // 维护与当前watcher相关的所有依赖
     this.deps = []
-    this.newDeps = []
-    this.depIds = new Set()
-    this.newDepIds = new Set()
-    
+ 
     this.expression = process.env.NODE_ENV !== 'production'
       ? expOrFn.toString()
       : ''
@@ -322,34 +303,19 @@ class Watcher {
     }
     return value
   }
-
+  
+  // 添加与当前Watcher实例相关的所有dep
+  // watcher与dep多对多
   addDep (dep) {
-    const id = dep.id
-    if (!this.newDepIds.has(id)) {
-      this.newDepIds.add(id)
-      this.newDeps.push(dep)
-      if (!this.depIds.has(id)) {
-        dep.addSub(this)
-      }
-    }
+    dep.addSub(this)
   }
-
+  // 遍历与当前watcher相关的dep，移除与当前watcher的关系
   cleanupDeps () {
     let i = this.deps.length
     while (i--) {
       const dep = this.deps[i]
-      if (!this.newDepIds.has(dep.id)) {
-        dep.removeSub(this)
-      }
+      dep.removeSub(this)
     }
-    let tmp = this.depIds
-    this.depIds = this.newDepIds
-    this.newDepIds = tmp
-    this.newDepIds.clear()
-    tmp = this.deps
-    this.deps = this.newDeps
-    this.newDeps = tmp
-    this.newDeps.length = 0
   }
 
   update () {
@@ -366,12 +332,7 @@ class Watcher {
       ) {
         const oldValue = this.value
         this.value = value
-        if (this.user) {
-          const info = `callback for watcher "${this.expression}"`
-          invokeWithErrorHandling(this.cb, this.vm, [value, oldValue], this.vm, info)
-        } else {
-          this.cb.call(this.vm, value, oldValue)
-        }
+        this.cb.call(this.vm, value, oldValue)
       }
     }
   }
@@ -381,7 +342,7 @@ class Watcher {
     this.dirty = false
   }
     
-  // 用于收集与当前Watcher相关的所有watcher
+  //遍历当前Watcher相关的所有deps，即与当前watcher相关的每一个dep，并将当前watcher添加至dep
   depend () {
     let i = this.deps.length
     while (i--) {
