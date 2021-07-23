@@ -2,26 +2,406 @@
 
 ## 观察者模式
 
-Vue2内部通过观察者模式处理数据与依赖的关系：
+Vue2内部通过观察者模式处理数据与依赖的关系，观察者模式的特点：
 
-观察者模式的特点：
-
-- 一对多。多个对象之间存在一对多的依赖关系，当一个对象的状态发生改变时，所有依赖于他的对象都得到通知并被自动更新，
-
+- 一对多。多个对象之间存在一对多的依赖关系，当一个对象的状态发生改变时，所有依赖于他的对象都得到通知并被自动更新
 - 降低目标数据与依赖之间的耦合关系
 - 属于行为型设计模式
 
-在Vue2中 数据就是我们要观察的对象，Watcher就是依赖，而Dep只是负责对watcher的收集和派发。
+### 简单实现观察者模式
 
-有意思的是，在Vue2中watcher也是目标数据。它与Dep是一种多对多的关系，而不是一对多。
+- Subject类：
+  - observers属性用于维护所有的观察者
+  - add方法用于添加观察者
+  - notify方法用于通知所有的观察者
+  - remove方法用于移除观察者
+- Observer类：
+  - update方法用于接受状态的变化
 
 ```js
-// 
-class Observe {
+// Subject 对象
+class Subject {
+    constructor() {
+        // 存储观察者
+        this.observers = [];
+    }
+    add(observer) { 
+    	this.observers.push(observer);
+  	}
+    // 状态变化，通知观察者
+ 	notify(...args) { 
+    	var observers = this.observers;
+    	for(var i = 0;i < observers.length;i++){
+      		observers[i].update(...args);
+    	}
+  	}
+	// 移除观察者
+  	remove(observer){
+    	var observers = this.observers;
+    	for(var i = 0; i < observers.length; i++){
+      		if(observers[i] === observer){
+        		observers.splice(i,1);
+      		}
+    	}
+  	}
 }
+
+
+// Observer 对象
+class Observer{
+    constructor(name) {
+        this.name = name;
+    }
+    update(args) {
+    	console.log('my name is '+this.name);
+	}
+}
+
+let sub = new Subject();
+let bigRio = new Observer('剑大瑞');
+let smallRio = new Observer('剑小瑞');
+sub.add(bigRio);
+sub.add(smallRio);
+sub.notify(); 
+```
+
+### Vue2中的观察者模式
+
+Vue2中 数据就是我们要观察的对象，Watcher就是依赖，而Dep只是负责对watcher的收集和派发。
+
+Vue2中watcher也是目标数据。它与Dep是一种多对多的关系，而不是一对多。
+
+#### Observer类
+
+- 用于创建Observer实例
+- walk方法遍历被观察的对象，将value中的每一项转为响应式
+- observeArray方法用于遍历被观察的数组，将数组中的每一项转为响应式
+
+```js
+class Observer {
+  constructor (value) {
+    this.value = value
+    this.dep = new Dep()
+    def(value, '__ob__', this)
+    if (Array.isArray(value)) {
+      if (hasProto) {
+        protoAugment(value, arrayMethods)
+      } else {
+        copyAugment(value, arrayMethods, arrayKeys)
+      }
+      this.observeArray(value)
+    } else {
+      this.walk(value)
+    }
+  }
+
+  walk (obj) {
+    // 遍历对象进行转换
+    const keys = Object.keys(obj)
+    for (let i = 0; i < keys.length; i++) {
+      defineReactive(obj, keys[i])
+    }
+  }
+
+  observeArray (items) {
+    // 遍历数组进行转换
+    for (let i = 0, l = items.length; i < l; i++) {
+      observe(items[i])
+    }
+  }
+}
+```
+
+### observe
+
+- observe方法是用于创建Observer实例的工场方法
+
+```js
+function observe (value, asRootData){
+  if (!isObject(value) || value instanceof VNode) {
+    return
+  }
+  let ob
+  if (hasOwn(value, '__ob__') && value.__ob__ instanceof Observer) {
+    ob = value.__ob__
+  } else if (
+    (Array.isArray(value) || isPlainObject(value)) &&
+    Object.isExtensible(value)
+  ) {
+    ob = new Observer(value)
+  }
+
+  return ob
+}
+```
+
+### defineReactive方法
+
+- 对val进行递归观察
+- 对obj[key]进行Getter、Setter拦截
+- 进行依赖收集、状态派发
+
+```js
+function defineReactive (
+  obj,
+  key,
+  val,
+  customSetter,
+  shallow
+) {
+  const dep = new Dep()
+
+  const property = Object.getOwnPropertyDescriptor(obj, key)
+  if (property && property.configurable === false) {
+    return
+  }
+
+  const getter = property && property.get
+  const setter = property && property.set
+  if ((!getter || setter) && arguments.length === 2) {
+    val = obj[key]
+  }
+  // 递归观察val
+  let childOb = !shallow && observe(val)
+  Object.defineProperty(obj, key, {
+    enumerable: true,
+    configurable: true,
+    get: function reactiveGetter () {
+      const value = getter ? getter.call(obj) : val
+      if (Dep.target) {
+        // 依赖收集 为当前Watcher
+        dep.depend()
+        if (childOb) {
+          // 子Observer收集依赖
+          childOb.dep.depend()
+          if (Array.isArray(value)) {
+            dependArray(value)
+          }
+        }
+      }
+      return value
+    },
+    set: function reactiveSetter (newVal) {
+      const value = getter ? getter.call(obj) : val
+      
+      if (newVal === value || (newVal !== newVal && value !== value)) {
+        return
+      }
+
+      if (setter) {
+        setter.call(obj, newVal)
+      } else {
+        val = newVal
+      }
+      childOb = !shallow && observe(newVal)
+      // 通知更新
+      dep.notify()
+    }
+  })
+}
+```
+
+### Dep类
+
+- 相当于Observer与Watcher之间的中介
+- 用于维护数据与依赖之间的关系
+
+```js
+let uid = 0
 class Dep {
+  static target;
+  id;
+  subs;
+
+  constructor () {
+    this.id = uid++
+    this.subs = []
+  }
+
+  addSub (sub) {
+    this.subs.push(sub)
+  }
+
+  removeSub (sub) {
+    remove(this.subs, sub)
+  }
+
+  depend () {
+    if (Dep.target) {
+      Dep.target.addDep(this)
+    }
+  }
+
+  notify () {
+    const subs = this.subs.slice()
+    for (let i = 0, l = subs.length; i < l; i++) {
+      subs[i].update()
+    }
+  }
 }
+
+Dep.target = null
+
+```
+
+### Watcher
+
+- 真正的依赖
+- 
+
+```js
+const targetStack = []
+
+function pushTarget (target) {
+  targetStack.push(target)
+  Dep.target = target
+}
+
+function popTarget () {
+  targetStack.pop()
+  Dep.target = targetStack[targetStack.length - 1]
+}
+
+let uid = 0
 class Watcher {
+  constructor (vm, expOrFn, cb, options, isRenderWatcher) {
+    this.vm = vm
+    if (isRenderWatcher) {
+      // 渲染watcher
+      vm._watcher = this
+    }
+    vm._watchers.push(this)
+    // options
+    if (options) {
+      this.deep = !!options.deep
+      this.user = !!options.user
+      this.lazy = !!options.lazy
+      this.before = options.before
+    }
+    this.cb = cb
+    this.id = ++uid 
+    this.active = true
+    this.dirty = this.lazy 
+      
+    // 维护与当前watcher相关的所有依赖
+    this.deps = []
+    this.newDeps = []
+    this.depIds = new Set()
+    this.newDepIds = new Set()
+    
+    this.expression = process.env.NODE_ENV !== 'production'
+      ? expOrFn.toString()
+      : ''
+    // 获取getter
+    if (typeof expOrFn === 'function') {
+      this.getter = expOrFn
+    } else {
+      this.getter = parsePath(expOrFn)
+    }
+    this.value = this.lazy ? undefined : this.get()
+  }
+
+  get () {
+    pushTarget(this)
+    let value
+    const vm = this.vm
+    try {
+      value = this.getter.call(vm, vm)
+    } catch (e) {
+      if (this.user) {
+        handleError(e, vm, `getter for watcher "${this.expression}"`)
+      } else {
+        throw e
+      }
+    } finally {
+      if (this.deep) {
+        traverse(value)
+      }
+      popTarget()
+      this.cleanupDeps()
+    }
+    return value
+  }
+
+  addDep (dep) {
+    const id = dep.id
+    if (!this.newDepIds.has(id)) {
+      this.newDepIds.add(id)
+      this.newDeps.push(dep)
+      if (!this.depIds.has(id)) {
+        dep.addSub(this)
+      }
+    }
+  }
+
+  cleanupDeps () {
+    let i = this.deps.length
+    while (i--) {
+      const dep = this.deps[i]
+      if (!this.newDepIds.has(dep.id)) {
+        dep.removeSub(this)
+      }
+    }
+    let tmp = this.depIds
+    this.depIds = this.newDepIds
+    this.newDepIds = tmp
+    this.newDepIds.clear()
+    tmp = this.deps
+    this.deps = this.newDeps
+    this.newDeps = tmp
+    this.newDeps.length = 0
+  }
+
+  update () {
+    this.run()
+  }
+
+  run () {
+    if (this.active) {
+      const value = this.get()
+      if (
+        value !== this.value ||
+        isObject(value) ||
+        this.deep
+      ) {
+        const oldValue = this.value
+        this.value = value
+        if (this.user) {
+          const info = `callback for watcher "${this.expression}"`
+          invokeWithErrorHandling(this.cb, this.vm, [value, oldValue], this.vm, info)
+        } else {
+          this.cb.call(this.vm, value, oldValue)
+        }
+      }
+    }
+  }
+
+  evaluate () {
+    this.value = this.get()
+    this.dirty = false
+  }
+    
+  // 用于收集与当前Watcher相关的所有watcher
+  depend () {
+    let i = this.deps.length
+    while (i--) {
+      this.deps[i].depend()
+    }
+  }
+
+  // 从所有dep中移除当前watcher
+  teardown () {
+    if (this.active) {
+      if (!this.vm._isBeingDestroyed) {
+        remove(this.vm._watchers, this)
+      }
+      let i = this.deps.length
+      while (i--) {
+        this.deps[i].removeSub(this)
+      }
+      this.active = false
+    }
+  }
 }
 ```
 
