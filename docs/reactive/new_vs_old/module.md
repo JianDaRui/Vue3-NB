@@ -67,7 +67,8 @@ sub.notify();
 
 ### Vue2中的观察者模式
 
-<img :src="$withBase('/img/define_reactive.png')" width="600" height="auto" alt="代理模式">
+<img :src="$withBase('/img/define_reactive.png')" width="600" height="auto" alt="响应原理" title="图片来自于网络，侵删">
+
 Vue2中 数据就是我们要观察的对象，Watcher就是依赖，而Dep只是负责对watcher的收集和派发。
 
 Vue2中watcher也是目标数据。它与Dep是一种多对多的关系，而不是一对多。
@@ -151,6 +152,7 @@ function defineReactive (obj, key, val, customSetter, shallow) {
 
   // 递归观察val
   let childOb = !shallow && observe(val)
+  
   Object.defineProperty(obj, key, {
     enumerable: true,
     configurable: true,
@@ -204,21 +206,21 @@ class Dep {
     this.id = uid++
     this.subs = []
   }
-
+  // 添加
   addSub (sub) {
     this.subs.push(sub)
   }
-
+  // 移除
   removeSub (sub) {
     remove(this.subs, sub)
   }
-
+  // 收集
   depend () {
     if (Dep.target) {
       Dep.target.addDep(this)
     }
   }
-
+  // 遍历通知
   notify () {
     const subs = this.subs.slice()
     for (let i = 0, l = subs.length; i < l; i++) {
@@ -310,6 +312,7 @@ class Watcher {
   addDep (dep) {
     dep.addSub(this)
   }
+    
   // 遍历与当前watcher相关的dep，移除与当前watcher的关系
   cleanupDeps () {
     let i = this.deps.length
@@ -367,7 +370,7 @@ class Watcher {
 }
 ```
 
-
+上面几个类代码中，省略了一些不必要的代码，以便减轻阅读负担。但已经能够展示出Vue2的观察者模式的基本结构。
 
 ## 代理模式
 
@@ -383,8 +386,59 @@ Vue3采用的是基于Proxy代理模式。
 - 职责清晰、高扩展性、智能化
   - 代理对象用于控制外界对原始对象的访问
   - 可以借助代理对象，增强或扩展接口功能
-  - 
 - 属于结构型设计模式
-- 例：正/反向代理、静/动态代理。
+- 例：正/反向代理、静/动态代理、属性校验。
+
+例举一个经典例子：使用虚拟代理加载图片
+
+加载原始图片的对象：
+
+- 创建一个原始img标签，并将标签添加至body
+- 返回一个对象，对象有个setSrc方法用于设置img标签的属性
+
+代理对象：
+
+- 创建一个Image实例，当img.onload执行时，将原始的img属性src设置为目标url
+- 返回一个对象，对象有个setSrc方法，初始时给原始img.src设置为loading.gif
+- img.src = src
+
+```js
+let rawImage = (function() {
+    let imgNode = document.createElement('img');
+    document.body.appendChild(imgNode);
+    
+    return {
+        setSrc; function(src) {
+            imgNode.src = src;
+        }
+    }
+})()
+
+let proxyImage = (function() {
+    let img = new Image;
+    img.onload = function(src) {
+        // 真实图片加载完成，设置为目标图片
+        rawImage.setSrc = img.src;
+    }
+    
+    return {
+        setSrc: function(src) {
+            myImage.setSrc('loading.gif');
+            img.src = src;
+        }
+    }
+})()
+
+// proxyImage去加载图片
+proxyImage.setSrc("https://lf1-cdn-tos.bytescm.com/obj/static/xitu_extension/static/baidu.10d6d640.png")
+```
+
+ES6提供的Proxy对象，拥有13种拦截方式。在vue3种使用的有:
+
+- set
+- get
+- has
+- deleteProperty
+- ownKeys
 
 <img :src="$withBase('/img/proxy.jpg')" width="600" height="auto" alt="代理模式">
