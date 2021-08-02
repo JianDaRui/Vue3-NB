@@ -85,6 +85,12 @@ export default class Watcher {
 }
 
 // Vue3
+
+```
+
+Vue3 Effect
+
+```js
 function createReactiveEffect(fn, options) {
   const effect = function reactiveEffect() {
     // 暂时省略...
@@ -100,9 +106,9 @@ function createReactiveEffect(fn, options) {
 }
 ```
 
+
+
 effect正是通过createReactiveEffect函数创建的，重点在于`effect.deps = []`，它与watcher.deps相同，负责维护与当前effect相关的所有dep。
-
-
 
 ```javascript
 function createReactiveEffect(fn, options) {
@@ -162,6 +168,28 @@ setTimeout(() => {
   - 而effect可以是多个
   - 且每个effect是唯一的
 - 使用Set作为Dep，来维持每一个key对应的所有effect。
+
+**从依赖中移除effect**
+
+- 获取与effect相关的所有deps
+- 遍历deps，调用delete方法删除对应的effect
+- 将deps.length设置为0
+
+```js
+function cleanup(effect) {
+  const { deps } = effect
+  if (deps.length) {
+    for (let i = 0; i < deps.length; i++) {
+      deps[i].delete(effect)
+    }
+    deps.length = 0
+  }
+}
+```
+
+
+
+## 实现Track函数：收集依赖
 
 搞清楚如何处理data与effect的关系后，我们可以一起简单实现下：
 
@@ -232,7 +260,9 @@ proxyTarget.name = "Jiandarui"
 
 通过上面的代码 & 结构图，我们基本将data与effect的关系梳理清楚了。不要忘记的是每一个effect都有一个deps属性，用于存储其所在的dep。
 
-## 触发所有依赖
+
+
+## 实现Trigger函数：触发所有依赖
 
 但data发生变化的时候，会触发trigger。因为每次trigger，需要明确是哪个key触发的effect。所以这里我们给trigger函数传入target、key、newValue作为参数。
 
