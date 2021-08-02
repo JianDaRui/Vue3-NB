@@ -44,7 +44,62 @@ function createForEach(isReadonly, isShallow) {
 
 ## 迭代器模式
 
-Map、Set中的keys、values、entries都内部都是通过迭代器实现的接口
+- 迭代器模式主要是提供一种方法顺序访问一个聚合对象中各个元素, 而又无须暴露该对象的内部表示。
+- 当需要为一类聚合对象或者数据结构提供一个统一的、简便的访问接口
+- 需要有序的访问聚合对象中的成员
+- 需要反复多次执行一段逻辑程序时就可以使用迭代器模式
+- 需要把元素之间游走的责任交给迭代器
+
+
+
+ES6中新增的Iterator主要是为了解决JS中原有"集合"及新增集合Map、Set的遍历问题。ES6为Array、Map、Set、String、TypedArray、函数的 arguments 对象、NodeList 对象都部署了Symbol.iterator接口，凡是部署了`Symbol.iterator`属性的数据结构，就称为部署了遍历器接口。调用这个接口，就会返回一个遍历器对象。
+
+
+
+实现一个自定义迭代器的要素：
+
+- 
+- 需要暴露一个属性作为"默认迭代器"，且这个属性必须要使用特殊的Symbol.iterator作为键
+- 
+
+
+
+```js
+class logArray {
+    constructor(arr) {
+        this.arr = arr
+        this.length = arr.length
+    }
+    [Symbol.iterator]() {
+        let i = 0;
+        let length = this.length;
+        let arr = this.arr;
+        return {
+            next() {
+                if(i <= length) {
+                    return { done: false, value: arr[i++] }
+                } else {
+                    return { done: true }
+                }
+            },
+            return() {
+                // 提供提前终结能力
+                return { done: true }
+            }
+    
+        }
+    }
+}
+
+let arr = new logArray([1,2,3,4,5]);
+for(let i of arr) {
+    console.log(i)
+}
+```
+
+
+
+Map、Set中的 keys、values、entries都内部都是通过迭代器实现的接口
 
 需要再遍历获取值得时候进行track、再调用迭代器接口的时候对值进行转化
 
@@ -94,7 +149,7 @@ function createIterableMethod( method, isReadonly, isShallow) {
 
 ## 创建各种类型的拦截器
 
-```js
+```typescript
 const mutableInstrumentations: Record<string, Function> = {
   get(this: MapTypes, key: unknown) {
     return get(this, key)
@@ -189,4 +244,12 @@ iteratorMethods.forEach(method => {
 ```
 
 
+
+参考：
+
+- https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Guide/Iterators_and_Generators
+
+- https://es6.ruanyifeng.com/#docs/iterator
+
+- https://m.runoob.com/design-pattern/iterator-pattern.html
 
