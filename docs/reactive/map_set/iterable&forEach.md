@@ -76,8 +76,8 @@ class logArray {
         let arr = this.arr;
         return {
             next() {
-                if(i <= length) {
-                    return { done: false, value: arr[i++] }
+                if(i < length) {
+                    return { done: false, value: arr[i++] * 2 }
                 } else {
                     return { done: true }
                 }
@@ -95,6 +95,11 @@ let arr = new logArray([1,2,3,4,5]);
 for(let i of arr) {
     console.log(i)
 }
+// 2
+// 4
+// 6
+// 8
+// 10
 ```
 
 
