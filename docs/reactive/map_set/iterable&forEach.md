@@ -61,9 +61,6 @@ ES6中新增的Iterator主要是为了解决JS中原有"集合"及新增集合Ma
 - 需要实现一个iterator接口，
 - 需要暴露一个属性作为"默认迭代器"，且这个属性必须要使用特殊的Symbol.iterator作为键
 - 需要一个可选的return方法用于指定在迭代器提前关闭时执行的逻辑，该方法返回一个有效的可迭代对象
-- 
-
-
 
 ```js
 class logArray {
@@ -103,7 +100,10 @@ for(let i of arr) {
 // 10
 ```
 
+Vue3中为什么使用迭代器改写Map、Set的集合方法？
 
+- 为了再进行遍历操作的时候进行track
+- 为了可以根据参数进行响应式转换
 
 Map、Set中的 keys、values、entries都内部都是通过迭代器实现的接口
 
@@ -121,7 +121,10 @@ function createIterableMethod( method, isReadonly, isShallow) {
       method === 'entries' || (method === Symbol.iterator && targetIsMap)
     const isKeyOnly = method === 'keys' && targetIsMap
     const innerIterator = target[method](...args)
+    
+    // 根据参数获取对应的响应转换函数
     const wrap = isShallow ? toShallow : isReadonly ? toReadonly : toReactive
+    
     // 依赖收集
     !isReadonly &&
       track(
@@ -129,6 +132,7 @@ function createIterableMethod( method, isReadonly, isShallow) {
         TrackOpTypes.ITERATE,
         isKeyOnly ? MAP_KEY_ITERATE_KEY : ITERATE_KEY
       )
+    
     // return a wrapped iterator which returns observed versions of the
     // values emitted from the real iterator
     return {
@@ -153,7 +157,9 @@ function createIterableMethod( method, isReadonly, isShallow) {
 
 
 
-## 创建各种类型的拦截器
+## 创建各种类型的Instrumentation
+
+- 正常情况
 
 ```typescript
 const mutableInstrumentations: Record<string, Function> = {
@@ -170,7 +176,10 @@ const mutableInstrumentations: Record<string, Function> = {
   clear,
   forEach: createForEach(false, false)
 }
+```
+- 浅层转换
 
+```js
 const shallowInstrumentations: Record<string, Function> = {
   get(this: MapTypes, key: unknown) {
     return get(this, key, false, true)
@@ -186,6 +195,12 @@ const shallowInstrumentations: Record<string, Function> = {
   forEach: createForEach(false, true)
 }
 
+
+```
+
+- 只读转换
+
+```js
 const readonlyInstrumentations: Record<string, Function> = {
   get(this: MapTypes, key: unknown) {
     return get(this, key, true)
@@ -202,7 +217,11 @@ const readonlyInstrumentations: Record<string, Function> = {
   clear: createReadonlyMethod(TriggerOpTypes.CLEAR),
   forEach: createForEach(true, false)
 }
+```
 
+- 浅层只读转换
+
+```js
 const shallowReadonlyInstrumentations: Record<string, Function> = {
   get(this: MapTypes, key: unknown) {
     return get(this, key, true, true)
@@ -220,6 +239,8 @@ const shallowReadonlyInstrumentations: Record<string, Function> = {
   forEach: createForEach(true, true)
 }
 ```
+
+
 
 改写迭代器方法：
 
