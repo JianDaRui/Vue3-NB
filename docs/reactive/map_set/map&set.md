@@ -1,6 +1,6 @@
 # 字典与集合
 
-## 经过proxy代理的Map
+## 经过Proxy代理的Map实例
 
 ```js
 let map = new Map([[1, 2], [3, 4], [5, 6]]);
@@ -97,9 +97,7 @@ for(let [key, value] of proxyMap) {
 // "name", "daRui"
 ```
 
-
-
-## Proxy代理下的Set
+## 经过Proxy代理下Set实例
 
 ```js
 let set = new Set([1, 2, 3, 4, 5])
@@ -119,6 +117,7 @@ let setHandler = {
   },
 }
 let proxySet = new Proxy(set, setHandler)
+
 // add
 console.log(proxySet.add('name', 'daRui'))
 // 输出
@@ -126,6 +125,7 @@ console.log(proxySet.add('name', 'daRui'))
 // value: function 
 // true
 // 6
+
 // has
 console.log(proxySet.has('name'))
 // 输出
@@ -138,24 +138,28 @@ console.log(proxySet.size)
 // 输出
 // get: size
 // 6
+
 // delete
 console.log(proxySet.delete(1))
 // 输出
 // get: delete
 // value: function
 // true
+
 // keys
 console.log(proxySet.keys())
 // 输出
 // get: keys
 // value: function
 // SetIterator {2, 3, 4, 5, "name"}
+
 // values
 console.log(proxySet.values())
 // 输出
 // get: values
 // value: function
 // SetIterator {2, 3, 4, 5, "name"}
+
 // entries
 console.log(proxySet.entries())
 // 输出
@@ -175,6 +179,7 @@ proxySet.forEach((item) => {
 // 4
 // 5
 // name
+
 for (let value of proxySet) {
   console.log(value)
 }
@@ -193,5 +198,13 @@ console.log(proxySet.clear())
 // value: function
 ```
 
+通过上面两段代码实例可以知道：
 
+- 经过Proxy代理的集合，在调用属性或者方法的时候都只会触发handler中的get函数
+
+- 通过Reflect.get获取的value，如果是属于集合的方法，需要对改变this指向
+
+- 集合的size属性在调用是需要判断（原因我暂时不知道啊，大神可指教）
+
+  
 
