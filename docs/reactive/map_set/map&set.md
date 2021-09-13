@@ -201,10 +201,9 @@ console.log(proxySet.clear())
 通过上面两段代码实例可以知道：
 
 - 经过Proxy代理的集合，在调用属性或者方法的时候都只会触发handler中的get函数
-
 - 通过Reflect.get获取的value，如果是属于集合的方法，需要对改变this指向
-
 - 集合的size属性在调用是需要判断（原因我暂时不知道啊，大神可指教）
 
-  
 
+
+知道了Proxy代理下的Map、Set是如何触发handler的，就带着问题让一起看下vue3中是如何处理？
