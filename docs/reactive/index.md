@@ -676,9 +676,7 @@ class Watcher {
 
 
 
-## 代理模式
-
-Vue3采用的是基于Proxy代理模式。
+**Vue3中的代理模式**
 
 代理模式属于设计模式中的一种结构型模式。通过代理模式我们可以基于原始对象，创建一个与之拥有相同接口的代理对象，在代理对象的接口中，我们可以做一些扩展性的操作，但是并不破坏原始对象。
 
@@ -691,51 +689,9 @@ Vue3采用的是基于Proxy代理模式。
   - 代理对象用于控制外界对原始对象的访问
   - 可以借助代理对象，增强或扩展接口功能
 - 属于结构型设计模式
-- 例：正/反向代理、静/动态代理、属性校验。
+- 例：使用虚拟代理加载图片、正/反向代理、静/动态代理、属性校验。
 
-例举一个经典例子：使用虚拟代理加载图片
-
-加载原始图片的对象：
-
-- 创建一个原始img标签，并将标签添加至body
-- 返回一个对象，对象有个setSrc方法用于设置img标签的属性
-
-代理对象：
-
-- 创建一个Image实例，当img.onload执行时，将原始的img属性src设置为目标url
-- 返回一个对象，对象有个setSrc方法，初始时给原始img.src设置为loading.gif
-- img.src = src
-
-```js
-let rawImage = (function() {
-    let imgNode = document.createElement('img');
-    document.body.appendChild(imgNode);
-    
-    return {
-        setSrc; function(src) {
-            imgNode.src = src;
-        }
-    }
-})()
-
-let proxyImage = (function() {
-    let img = new Image;
-    img.onload = function(src) {
-        // 真实图片加载完成，设置为目标图片
-        rawImage.setSrc = img.src;
-    }
-    
-    return {
-        setSrc: function(src) {
-            myImage.setSrc('loading.gif');
-            img.src = src;
-        }
-    }
-})()
-
-// proxyImage去加载图片
-proxyImage.setSrc("https://lf1-cdn-tos.bytescm.com/obj/static/xitu_extension/static/baidu.10d6d640.png")
-```
+Vue3采用的是基于Proxy的代理模式。
 
 ES6提供的Proxy对象，拥有13种拦截方式。在vue3种使用的有:
 
