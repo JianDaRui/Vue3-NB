@@ -288,9 +288,7 @@ Proxy相较于Object.defineProperty更加强大。通过上面的示例，可以
 
 但是Proxy也有自己的缺陷，这里我们先留个空白，后面会补充。我们接着聊。
 
-### 新旧模式对比
-
-#### 观察者模式与代理模式
+### 新旧模式对比：观察者模式与代理模式
 
 #### 观察者模式
 
@@ -676,11 +674,11 @@ class Watcher {
 
 
 
-**Vue3中的代理模式**
+#### 代理模式
 
 代理模式属于设计模式中的一种结构型模式。通过代理模式我们可以基于原始对象，创建一个与之拥有相同接口的代理对象，在代理对象的接口中，我们可以做一些扩展性的操作，但是并不破坏原始对象。
 
-当我们需要对原始对象的访问做一些控制或者加强时，就可以使用代理模式。
+当我们需要对原始对象的访问做一些**控制或者加强**时，就可以使用代理模式。
 
 代理模式的特点：
 
@@ -691,21 +689,162 @@ class Watcher {
 - 属于结构型设计模式
 - 例：使用虚拟代理加载图片、正/反向代理、静/动态代理、属性校验。
 
-Vue3响应式是基于Proxy的代理模式。通过配置handle我们就可以对原始对象的访问进行控制 & 增强。
+Vue3响应式是基于Proxy的代理模式。通过**配置handler**我们就可以对原始对象的访问**进行控制 & 增强**。
 
-ES6提供的Proxy对象，拥有13种拦截方式。在vue3种使用的有:
+![Vue3代理模式](D:\vue3深入浅出\docs\.vuepress\public\img\proxy_module.png)
 
-- set
-- get
-- has
-- deleteProperty
-- ownKeys
+**增强的hanlder**
 
-<img :src="$withBase('/img/proxy.jpg')" width="600" height="auto" alt="代理模式">
+- getter时进行Track
+  - 确定target与effect的关系
+  - 确定activeEffect与Dep的关系
+  - 返回value
+- setter时进行Trigger
+  - 获取对应的effects，遍历执行effect
+  - 更新activeEffect
+  - 更新value
+
+通过上面的图，我们可以看出，Vue3中的依赖收集 & 响应派发都是在handler中做的，但是有几个问题需要我们确定下：
+
+- handler针对其他操作类型是如何配置的？比如delete、forEach。
+- 针对不同的数据类型，handler的配置方式一样吗？有什么需要注意的？
+
+针对上面的两个问题，我们先留着。下面的内容我们就会说到，咱们接着聊。
 
 ## 变化侦测
 
-### 依赖收集与响应
+### 依赖收集 Track
+
+#### 依赖是谁？
+
+在Vue2中，依赖就是watcher，在Vue3的源码中，我并没有发现Watcher类，而是出现一个新的函数effect，可以称为副作用函数。通过对比watcher与effect及effect与数据的关系。可以确定的称effect就是依赖；
+
+这里贴上effect代码的简略实现，并分析下它的思路：
+
+- effect接受一个fn作为回调函数通过createReactiveEffect函数进行缓存
+- 通过options对effect进行配置
+- 执行effect其实就是创建一个缓存了fn的effect函数
+
+```js
+export function effect(fn, options) {
+  if (isEffect(fn)) {
+    fn = fn.raw
+  }
+  const effect = createReactiveEffect(fn, options)
+  if (!options.lazy) {
+    effect()
+  }
+  return effect
+}
+
+function createReactiveEffect(fn, options) {
+  const effect = function reactiveEffect() {
+     // 省略部分代码
+    return fn()
+  }
+  effect.id = uid++
+  effect.allowRecurse = !!options.allowRecurse
+  effect._isEffect = true
+  effect.active = true
+  effect.raw = fn
+  effect.deps = []
+  effect.options = options
+  return effect
+}
+```
+
+
+
+#### 收集在哪里？
+
+#### 数据与依赖之间的关系
+
+通过上一小节，我们知道当proxy读取数据时，会触发Getter函数，当设置新的值时，会触发Setter函数。故可以通过Getter函数进行Track。下面我们就用代码模拟下。
+
+```javascript
+function createReactiveObject(target, handlers) {
+	let proxy = new Proxy(target, handlers)
+	return proxy
+}
+const handlers = { 
+	get(target, key, receiver) {
+		const res = Reflect.get(target, key, receiver)
+		// get的时候track
+        track(target, key);
+		return res;
+	},
+    set(target, key, value, receiver) {
+        console.log("set函数")
+        Reflect.set(target, key, value, receiver);
+	}
+}
+
+function track(target, key) {
+   // 负责进行track
+    console.log("track")
+}
+
+let target = { name: "剑大瑞" }
+
+let proxyTarget = createReactiveObject(target, handlers)
+
+proxyTarget.name  // "get的时候track"
+ 				  // "剑大瑞"
+```
+
+这里通过createReactiveObject对proxy进行封装，对target、handler对象进行分离，方便后续进行一些较为复杂的扩展操作。
+
+#### 完善handler & track
+
+
+
+### 响应派发Trigger
+
+当进行 proxy.key = newValue 时，会触发Setter函数，这里我们可以做一些依赖的派发工作，比如DOM的更新。
+
+```html	
+<template>
+	<div>
+    	{{proxy.name}}
+	</div>
+</template>
+```
+
+模板中name是通过Proxy代理产生的，当proxy.name赋新值时，会触发Setter，这时需要动态的去更新DOM，故在Setter中可以做一些依赖的触发操作。
+
+```javascript
+
+function trigger(target, key, newValue, oldValue) {
+    console.log("trigger")
+}
+function createReactiveObject(target, handlers) {
+	let proxy = new Proxy(target, handlers)
+	return proxy
+}
+const handlers = { 
+	get(target, key, receiver) {
+		const res = Reflect.get(target, key, receiver)
+		track(target, key);
+		return res;
+	},
+    set(target, key, newValue, receiver) {
+        const res = Reflect.set(target, key, newValue, receiver);
+        trigger(target, key, newValue)
+        return res
+	}
+}
+
+let target = { name: "剑大瑞" }
+
+let proxyTarget = createReactiveObject(target, handlers)
+
+proxyTarget.name  // "track"
+proxyTarget.name = "Jiandarui" // "trigger"
+```
+
+通过上面的代码示例，我们可以知道，Vue3内部，会在Getter函数中进行track，在Setter函数中进行trigger。上面我们并没有研究这两个关键函数的内部实现，下一小节我们一起研究下现在的响应式是如何处理数据与依赖的？track与trigger的内部实现的细节有哪些？
+
+
 
 ### 依赖&数据的结构
 
@@ -727,4 +866,4 @@ ES6提供的Proxy对象，拥有13种拦截方式。在vue3种使用的有:
 
 ## 总结
 
-[但又纯在细微的差别]: 
+[但又纯在细微的差别]: do
