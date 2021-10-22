@@ -279,7 +279,7 @@ let p = new Proxy({}, {
 console.log(Object.getOwnPropertyNames(p)); // "called"
 ```
 
-#### 总结
+#### 总结（待完善）
 
 Proxy相较于Object.defineProperty更加强大。通过上面的示例，可以看出Proxy可以弥补Object.defineProperty在依赖收集，侦测变化方面的缺陷，比如：
 
@@ -704,6 +704,42 @@ Vue3响应式是基于Proxy的代理模式。通过**配置handler**我们就可
   - 更新activeEffect
   - 更新value
 
+通过分析，我们不难写出有以下逻辑的代码：
+
+- 通过对target进行判断，是否需要进行代理转换
+- 通过new Proxy对target进行代理
+- 将代理实例返回
+
+```js
+function createReactiveObject(target, handlers, proxyMap) {
+    
+   // 1. 仅代理对象类型
+  if (!isObject(target)) {
+    if (__DEV__) {
+      console.warn(`value cannot be made reactive: ${String(target)}`)
+    }
+    return target
+  }
+ 
+  // 2. 判断target是否已经经过代理
+  const existingProxy = proxyMap.get(target)
+  if (existingProxy) {
+    return existingProxy
+  }
+  // 3. 进行代理转换
+  const proxy = new Proxy(target,  handlers)
+  
+  // 4. 创建target与代理实例之间的映射，方便下次进行判断
+  proxyMap.set(target, proxy)
+    
+  // 5.返回代理实例
+  return proxy
+}
+
+```
+
+
+
 通过上面的图，我们可以看出，Vue3中的依赖收集 & 响应派发都是在handler中做的，但是有几个问题需要我们确定下：
 
 - handler针对其他操作类型是如何配置的？比如delete、forEach。
@@ -713,11 +749,11 @@ Vue3响应式是基于Proxy的代理模式。通过**配置handler**我们就可
 
 ## 变化侦测
 
-### 依赖收集 Track
+### Track：依赖收集 
 
-#### 依赖是谁？
+#### 新的依赖
 
-在Vue2中，依赖就是watcher，在Vue3的源码中，我并没有发现Watcher类，而是出现一个新的函数effect，可以称为副作用函数。通过对比watcher与effect及effect与数据的关系。可以确定的称effect就是依赖；
+在Vue2中，依赖就是watcher，在Vue3的源码中，我并没有发现Watcher类，而是出现一个新的函数effect，可以称为副作用函数。通过对比watcher与effect及effect与数据的关系。可以确定的称effect相当于Vue2中的watcher，但比Watcher类更简洁。
 
 这里贴上effect代码的简略实现，并分析下它的思路：
 
@@ -727,9 +763,6 @@ Vue3响应式是基于Proxy的代理模式。通过**配置handler**我们就可
 
 ```js
 export function effect(fn, options) {
-  if (isEffect(fn)) {
-    fn = fn.raw
-  }
   const effect = createReactiveEffect(fn, options)
   if (!options.lazy) {
     effect()
@@ -753,11 +786,82 @@ function createReactiveEffect(fn, options) {
 }
 ```
 
-
-
 #### 收集在哪里？
 
-#### 数据与依赖之间的关系
+在Vue2中，为了维护数据与watcher的关系，专门创建了Dep类。而在Vue3中Dep变为了一个简单的Set实例。在Track的时候，当前的activeEffect就存储在dep中。在Trigger的时候，通过key获取对应的dep集合，再去遍历执行即可。
+
+这里贴上track的简略代码：
+
+```js
+export function track(target, type, key) {
+  if (!shouldTrack || activeEffect === undefined) {
+    return
+  }
+  let depsMap = targetMap.get(target)
+  if (!depsMap) {
+    targetMap.set(target, (depsMap = new Map()))
+  }
+  // 1.尝试获取dep
+  let dep = depsMap.get(key)
+  if (!dep) {
+      
+    // 2.如果没有就创建
+    depsMap.set(key, (dep = new Set()))
+  }
+  if (!dep.has(activeEffect)) {
+      
+    // 3.添加当前activeEffect至dep
+    dep.add(activeEffect)
+      
+    // 4.activeEffect.deps是一个数组，用于维护当前activeEffect与其所在的dep之间的关系
+    // 这里可以看出：effect与dep也是一种多对多的关系，即：
+    //     a. 一个effect可能存在多个dep中
+    //     b. dep又存在于effect.deps中
+    activeEffect.deps.push(dep)
+  }
+}
+```
+
+#### 数据与依赖之间的关系（待完善）
+
+在Vue2中，是通过Observe、Dep、Watcher来维持value与watcher之间的关系。
+
+但是Vue3中没有了上面的几个类。那它是如何维持value与effect之间的关系的呢？
+
+我们看一段伪代码：
+
+```js
+import { reactive } from "vue"
+let count = reactive(0)
+let obj = reactive({
+  name: "剑大瑞"，
+  age: 18,
+  beGoogAt: "createBug",
+  otherInfo: {
+  	temp1: ["篮球", "足球", "桌球"]
+    temp2: {
+      brother: ["张三"， "李四"],
+      sister: ["李华"， "李丽"],
+    }
+  }
+})
+// 更改obj
+obj.age = 27
+obj.otherInfo.temp1.push("羽毛球")
+```
+
+当obj的属性发生变化的时候，我们需要去执行所有与之相关的effect，触发响应。
+
+
+
+![数据与依赖之间的关系](D:\vue3深入浅出\docs\.vuepress\public\img\effect_dep.png)
+
+- targetMap：使用WeakMap实例，用于维护targetObject与KeyToDepMap的关系
+- KeyToDepMap：使用Map实例，用于维护key与Dep的关系
+- Dep：使用Set实例，用于存储所有与key相关的effect
+- effect.deps：使用Array实例，用于存储所有与当前effect的dep实例
+
+#### 待调整
 
 通过上一小节，我们知道当proxy读取数据时，会触发Getter函数，当设置新的值时，会触发Setter函数。故可以通过Getter函数进行Track。下面我们就用代码模拟下。
 
@@ -794,13 +898,15 @@ proxyTarget.name  // "get的时候track"
 
 这里通过createReactiveObject对proxy进行封装，对target、handler对象进行分离，方便后续进行一些较为复杂的扩展操作。
 
-#### 完善handler & track
+#### 完善handler & track（待完善）
 
 
 
-### 响应派发Trigger
+### Trigger：响应派发
 
-当进行 proxy.key = newValue 时，会触发Setter函数，这里我们可以做一些依赖的派发工作，比如DOM的更新。
+当我们对经过响应转换的数据进行修改时，会触发Setter函数，这时需要做依赖的派发工作，比如DOM更新、watch/computed的执行。
+
+#### 触发依赖
 
 ```html	
 <template>
@@ -810,17 +916,60 @@ proxyTarget.name  // "get的时候track"
 </template>
 ```
 
-模板中name是通过Proxy代理产生的，当proxy.name赋新值时，会触发Setter，这时需要动态的去更新DOM，故在Setter中可以做一些依赖的触发操作。
+模板中name是通过Proxy代理产生的，当proxy.name赋新值时，会触发Setter，这时需要动态的去更新DOM，故在Setter中可以做一些依赖的触发操作。我们可以通过创建一个trigger函数，在setter函数中调用。
+
+通过分析，**tigger函数的主要作用**：
+
+- 根据target、key获取要执行的所有effect
+- 根据type操作，进行一些情况判断，添加需要遍历执行的effect
+- 遍历执行effets，触发响应
 
 ```javascript
+function trigger(target , type , key , newValue , oldValue , oldTarget) {
+  // 1.根据target获取对应的KeyTopDepMaps
+  const depsMap = targetMap.get(target)
+  if (!depsMap) {
+    // never been tracked
+    return
+  }
 
-function trigger(target, key, newValue, oldValue) {
-    console.log("trigger")
+  const effects = new Set()
+  
+  // 2.负责将effect添加至effects
+  const add = (effectsToAdd) => {
+    if (effectsToAdd) {
+      effectsToAdd.forEach(effect => {
+        if (effect !== activeEffect) {
+          effects.add(effect)
+        }
+      })
+    }
+  }
+
+  // schedule runs for SET | ADD | DELETE
+  if (key !== void 0) {
+      
+     // 3.将与key相关的dep传给add，dep中存储着所有与key相关的effect
+     add(depsMap.get(key))
+  }
+
+  // 5.负责执行effect，这时就会执行当初创建effect时，传递的callBack函数
+  const run = (effect) => {
+    if (effect.options.scheduler) {
+      effect.options.scheduler(effect)
+    } else {
+      effect()
+    }
+  }
+  // 4. 遍历执行effect
+  effects.forEach(run)
 }
+
 function createReactiveObject(target, handlers) {
 	let proxy = new Proxy(target, handlers)
 	return proxy
 }
+// 配置handler
 const handlers = { 
 	get(target, key, receiver) {
 		const res = Reflect.get(target, key, receiver)
@@ -838,19 +987,172 @@ let target = { name: "剑大瑞" }
 
 let proxyTarget = createReactiveObject(target, handlers)
 
+const effect = patchDOM() {
+    // 负责更新DOM
+}
 proxyTarget.name  // "track"
 proxyTarget.name = "Jiandarui" // "trigger"
 ```
 
 通过上面的代码示例，我们可以知道，Vue3内部，会在Getter函数中进行track，在Setter函数中进行trigger。上面我们并没有研究这两个关键函数的内部实现，下一小节我们一起研究下现在的响应式是如何处理数据与依赖的？track与trigger的内部实现的细节有哪些？
 
+#### 完善handler & track & trigger
 
+通过对Proxy，handler、track、trigger、effect、依赖与数据的关系这几项分析。接下来我们就可以进行一个简单的组合，写出一个简版的响应式代码
 
-### 依赖&数据的结构
+```js
+// 1.负责target与依赖的映射
+const targetMap = new WeakMap();
+
+// 2.创建effect函数
+export function effect(fn, options) {
+  const effect = createReactiveEffect(fn, options)
+  if (!options.lazy) {
+    effect()
+  }
+  return effect
+}
+
+function createReactiveEffect(fn, options) {
+  const effect = function reactiveEffect() {
+     // 省略部分代码
+    return fn()
+  }
+  effect.id = uid++
+  effect.allowRecurse = !!options.allowRecurse
+  effect._isEffect = true
+  effect.active = true
+  effect.raw = fn
+  effect.deps = []
+  effect.options = options
+  return effect
+}
+
+// 3.track函数
+function track(target, type, key) {
+  if (!shouldTrack || activeEffect === undefined) {
+    return
+  }
+  let depsMap = targetMap.get(target)
+  if (!depsMap) {
+    targetMap.set(target, (depsMap = new Map()))
+  }
+  let dep = depsMap.get(key)
+  if (!dep) {
+      
+    depsMap.set(key, (dep = new Set()))
+  }
+  if (!dep.has(activeEffect)) {
+      
+    dep.add(activeEffect)
+
+    activeEffect.deps.push(dep)
+  }
+}
+
+// 4.trigger函数
+function trigger(target , type , key , newValue , oldValue , oldTarget) {
+  const depsMap = targetMap.get(target)
+  if (!depsMap) {
+    // never been tracked
+    return
+  }
+
+  const effects = new Set()
+  
+  const add = (effectsToAdd) => {
+    if (effectsToAdd) {
+      effectsToAdd.forEach(effect => {
+        if (effect !== activeEffect) {
+          effects.add(effect)
+        }
+      })
+    }
+  }
+
+  // schedule runs for SET | ADD | DELETE
+  if (key !== void 0) {
+      
+     add(depsMap.get(key))
+  }
+
+  const run = (effect) => {
+    if (effect.options.scheduler) {
+      effect.options.scheduler(effect)
+    } else {
+      effect()
+    }
+  }
+  effects.forEach(run)
+}
+
+// 5.进行代理转换 
+function createReactiveObject(target, handlers, proxyMap) {
+  if (!isObject(target)) {
+    if (__DEV__) {
+      console.warn(`value cannot be made reactive: ${String(target)}`)
+    }
+    return target
+  }
+ 
+  const existingProxy = proxyMap.get(target)
+  if (existingProxy) {
+    return existingProxy
+  }
+  const proxy = new Proxy(target,  handlers)
+  
+  proxyMap.set(target, proxy)
+    
+  return proxy
+}
+// 6. 配置handler
+const handlers = { 
+	get(target, key, receiver) {
+		const res = Reflect.get(target, key, receiver)
+		track(target, key);
+		return res;
+	},
+    set(target, key, newValue, receiver) {
+        const res = Reflect.set(target, key, newValue, receiver);
+        trigger(target, key, newValue)
+        return res
+	}
+}
+
+let target = {
+    name: "jiandarui"
+}
+const proxyMap = new Map()
+let proxy = createReactiveObject(target, handlers, proxyMap);
+
+// 伪代码
+const effectFn = effect(() => {
+    // 负责渲染组件
+}，{lazy: false})
+```
+
+- 当初次渲染的时候，会进行读取操作，出发getter函数，这时就会通过track完成依赖的收集工作
+- 当数据发生变化的时候，会触发setter函数，这时会通过trigger函数进行响应
 
 ### Object&Array的变化侦测
 
+#### Object的深度代理
+
+#### 数组track&trigger的问题
+
+#### 数组仪表盘
+
+#### 只读响应式
+
+#### 浅层只读响应式
+
 ### Map&Set的变化侦测
+
+#### 增删改查
+
+#### 迭代模式&遍历模式
+
+#### 创建Handler
 
 ## API实现原理
 
