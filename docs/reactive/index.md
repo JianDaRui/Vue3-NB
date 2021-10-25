@@ -711,6 +711,34 @@ Vue3响应式是基于Proxy的代理模式。通过**配置handler**我们就可
 - 将代理实例返回
 
 ```js
+// 配置handler
+const handlers = { 
+	get(target, key, receiver) {
+		const res = Reflect.get(target, key, receiver)
+		// get的时候track
+        track(target, key);
+		return res;
+	},
+    set(target, key, value, receiver) {
+        console.log("set函数")
+        trigger(target, key, value, )
+        Reflect.set(target, key, value, receiver);
+	}
+}
+
+// track函数
+function track(target, key) {
+   // 负责进行依赖收集
+    console.log("track")
+}
+
+// trigger函数
+function trigger(target, key, value) {
+    // 负责进行响应
+    console.log("trigger")
+}
+
+// 响应转换函数
 function createReactiveObject(target, handlers, proxyMap) {
     
    // 1. 仅代理对象类型
@@ -737,8 +765,6 @@ function createReactiveObject(target, handlers, proxyMap) {
 }
 
 ```
-
-
 
 通过上面的图，我们可以看出，Vue3中的依赖收集 & 响应派发都是在handler中做的，但是有几个问题需要我们确定下：
 
@@ -860,45 +886,6 @@ obj.otherInfo.temp1.push("羽毛球")
 - KeyToDepMap：使用Map实例，用于维护key与Dep的关系
 - Dep：使用Set实例，用于存储所有与key相关的effect
 - effect.deps：使用Array实例，用于存储所有与当前effect的dep实例
-
-#### 待调整
-
-通过上一小节，我们知道当proxy读取数据时，会触发Getter函数，当设置新的值时，会触发Setter函数。故可以通过Getter函数进行Track。下面我们就用代码模拟下。
-
-```javascript
-function createReactiveObject(target, handlers) {
-	let proxy = new Proxy(target, handlers)
-	return proxy
-}
-const handlers = { 
-	get(target, key, receiver) {
-		const res = Reflect.get(target, key, receiver)
-		// get的时候track
-        track(target, key);
-		return res;
-	},
-    set(target, key, value, receiver) {
-        console.log("set函数")
-        Reflect.set(target, key, value, receiver);
-	}
-}
-
-function track(target, key) {
-   // 负责进行track
-    console.log("track")
-}
-
-let target = { name: "剑大瑞" }
-
-let proxyTarget = createReactiveObject(target, handlers)
-
-proxyTarget.name  // "get的时候track"
- 				  // "剑大瑞"
-```
-
-这里通过createReactiveObject对proxy进行封装，对target、handler对象进行分离，方便后续进行一些较为复杂的扩展操作。
-
-#### 完善handler & track（待完善）
 
 
 
@@ -1138,13 +1125,571 @@ const effectFn = effect(() => {
 
 #### Object的深度代理
 
+在vue2中，defineReactive函数会对data进行递归转换。那Vue3中是否存在这个问题呢？让我们先看一段代码：
+
+```js
+let obj = {
+    name: "剑大瑞",
+    hobby: {
+       one: "篮球",
+       two: "游泳"
+    }
+}
+let handler = {
+    get(target, key, receiver) {
+        console.log(`get：${key}`)
+        return Reflect.get(target, key, receiver)
+    },
+    set(target, key, value, receiver) {
+        console.log(`set：${key}`)
+        Reflect.set(target, key, value, receiver)
+    }
+}
+let proxyObj = new Proxy(obj, handler)
+proxyObj.name
+// get: name
+// 剑大瑞
+proxyObj.name = "jiandarui"
+// set: name
+// jiandarui
+proxyObj.hobby.one
+// get: hobby
+// 篮球
+proxyObj.hobby.one = "basketball"
+// get: hobby
+// basketball
+```
+
+上面的代码中，我们明明通过 proxyObj.hobby.one = "basketball"，赋予新值，但handler只拦截到了hobby属性的getter操作。
+
+如果obj中key对应的value为Object类型，则**Proxy只能进行单层的拦截**。这并不是我们期望的。
+
+如果我们遇到如下场景：
+
+```html
+<div>{{proxyObj.hobby.one}}</div>
+```
+
+当 proxyObj.hobby.one 发生变化以后，我们期望DOM进行更新。由于proxyObj只进行了单层的代理，hobby并没有经过Proxy转为响应式。则会导致更新失败。
+
+那Vue3是如何解决的呢？
+
+答案是：**进行递归代理**，其思路与Vue2类似，通过判断value的类型，再进行响应转换。
+
+这里就需要我们改写getter函数，
+
+- 在get的时候去判断获取的value是否为Object
+- 如果是Object，则再次进行一次Reactive代理
+
+```js
+let handler = {
+    get(target, key， receiver) {
+        // 省略部分代码.....
+        
+    	const res = Reflect.get(target, key, receiver)
+    	if (isObject(res)) {
+            // 如果为对象类型，则进行深层次转换
+      		createReactiveObject(res)
+    	}
+    	return res
+  	},
+    set(target, key, value, receiver) {
+        console.log(`set：${key}`)
+        Reflect.set(target, key, value, receiver)
+    }
+}
+```
+
 #### 数组track&trigger的问题
 
-#### 数组仪表盘
+Vue3中虽没有了数组拦截器，但是出现了另一个问题，让我们看一段代码：
 
-#### 只读响应式
+```js
+let arr = [1,2,3]
+let handler = {
+   get: function(target, key, receiver) {
+       console.log(`get:${key}`)
+       return Reflect.get(target, key, receiver)
+   },
+   set: function(target, key, value, receiver) {
+       	console.log(`set:${key}`)
+      	return Reflect.set(target, key, value, receiver)
+   }
+}
+let proxyArr = new Proxy(arr, handler)
+proxyArr.push(4) 
+// get:push
+// get:length
+// set:3
+// set:length
+proxyArr.pop()
+// get:pop
+// get:length
+// get:3
+// set:length
+proxyArr.shift()
+// get:shift
+// get:length
+// get:0
+// get:1
+// set:0
+// get:2
+// set:1
+// set:length
+proxyArr.unshift(5)
+// get:unshift
+// get:length
+// get:1
+// set:2
+// get:0
+// set:1
+// set:0
+// set:length
+proxyArr.splice(2,3,4)
+// get:splice
+// get:length
+// get:constructor
+// get:2
+// set:2
+// set:length
+```
 
-#### 浅层只读响应式
+通过上面几个操作演示，我们可以发现一个简单的操作，可能会触发多次的Getter函数或者Setter函数，这种操作如果是在平常的业务开发过程中可能没有问题，但是在Vue3中可能会导致死递归的出现。
+
+**push&pop&shift&unshift&splice** 这几个方法是可以对数组进行增加删除操作。需要注意的是：
+
+- 这几个方法直接修改的是原数组
+- 并会导致数组**length**属性的变化
+
+ **includes&indexOf&lastIndexOf** 这三个方法都是数组用于判断是否存在要查找的值，需要注意的是：
+
+- 这三个方法在数组方法实现中都会**对数组进行遍历操作**
+
+> 感兴趣的同学可以看相关issue：[传送门1 (opens new window)](https://github.com/vuejs/vue-next/pull/2138)[传送门2(opens new window)](https://github.com/vuejs/vue-next/issues/2137)
+>
+> 大概意思是当通过watchEffect观察数组时，**发生了死递归**
+
+通过上面打印的规律，可以发现：
+
+- 每次调用方法时，都会先触发get，最后触发set
+
+#### 创建数组Instrumentations
+
+> 评论区，请大佬指教，vue3中的Instrumentations应如何翻译？(✿◡‿◡)
+
+那我们能否做一个状态管理器，通过判断是否需要track，以避免到不必要的track和trigger：
+
+- 通过hander中的get函数拦截array上的方法
+- 对原型上的方法进行封装，在获取结果前后，分别去做track的暂停和重置，通过trackStack记录shouldTrack
+- 获取到结果后，在进行track
+
+让我们一起看下处理后的代码，注意**注释标示的顺序**：
+
+```js
+function createReactiveObject(target, handlers) {
+  let proxy = new Proxy(target, handlers)
+  return proxy
+}
+const targetMap = new WeakMap()
+
+function track(target, key) {
+  if (!shouldTrack) {
+    return
+  }
+  console.log('-------track-------')
+  // 省略部分代码
+}
+
+function trigger(target, key, newValue, oldValue) {
+  console.log('trigger')
+}
+
+const handlers = {
+  get(target, key, receiver) {
+      
+    // 1. 先获取结果
+    // 注意：这里Reflect传递的是经过处理的 arrayInstrumentations
+    const res = Reflect.get(arrayInstrumentations, key, receiver)
+    
+    // 5. 再track
+    track(target, key)
+    // 查看触发情况
+    console.log(`get:${key}`)
+    return res
+  },
+  set(target, key, newValue, receiver) {
+    const res = Reflect.set(target, key, newValue, receiver)
+    trigger(target, key, newValue)
+    console.log(`set:${key}`)
+    return res
+  },
+}
+
+// 对数组原型上的方法进行拦截封装
+const arrayInstrumentations = {}
+;['push', 'pop', 'shift', 'unshift', 'splice'].forEach((key) => {
+  const method = Array.prototype[key]
+  arrayInstrumentations[key] = function (thisArgs = [], ...args) {
+      
+    // 2. 暂停track
+    // 先将上一次的shouldTrack状态push至trackStack
+   	// shouldTrack = false，不会触发track
+    pauseTracking()
+      
+    // 3.获取结果
+    const res = method.apply(thisArgs, args)
+    
+    // 4. 恢复track
+    // shouldTrack取上一次的状态
+    resetTracking()
+    return res
+  }
+})
+
+// 用于控制track函数
+let shouldTrack = true
+const trackStack = []
+// 暂停开关
+function pauseTracking() {
+  trackStack.push(shouldTrack)
+  shouldTrack = false
+}
+// 重置开关
+function resetTracking() {
+  const last = trackStack.pop()
+  shouldTrack = last === undefined ? true : last
+}
+
+let arr = [1, 2, 3]
+let proxyArr = createReactiveObject(arr, handlers)
+proxyArr.push(4)
+proxyArr.pop()
+proxyArr.shift()
+proxyArr.unshift(5)
+proxyArr.splice(2,3,4)
+//  -------track-------
+//  get:push
+//  -------track-------
+//  get:pop
+//  -------track-------
+//  get:shift
+//  -------track-------
+//  get:unshift
+//  -------track-------
+//  get:splice
+```
+
+#### 浅层响应转换
+
+前面提到，针对多层Object，需要通过递归进行深度代理。但是某些场景中我们希望响应式的对象只需要进行浅层代理。这就需要:
+
+- 改写get函数：
+  - 创建一个createGetter函数用来传递参数
+  - 使用JS的闭包，缓存shallow，返回get函数
+  - get函数内部通过shallow判断是否需要对res再次reactive
+- 改写set函数：
+  - targetObject为浅层响应，当targetObject内部属性发生变化时并不需要设置新值，
+
+```js
+const shallowReactiveHandlers = {
+  get(target, key, receiver) {
+    // reactiveMap、shallowReactiveMap是weakMap实例，用于映射target与代理实例
+    if (receiver === shallowReactiveMap.get(target)) {
+      return target
+    }
+
+    const res = Reflect.get(target, key, receiver)
+	// 不在需要判断res的类型
+    return res
+  },
+  set(target, key, value, receiver, shallow) {
+    let oldValue = target[key]
+    if (!shallow) {
+      value = toRaw(value)
+      oldValue = toRaw(oldValue) 
+      oldValue.value = value
+      return true
+    } else {
+      // shallow为true，不管targetObject是否是响应式，都不再更新设置oldValue的更新
+    }
+
+    const result = Reflect.set(target, key, value, receiver)
+    
+    if (target === toRaw(receiver)) { 
+        trigger(target, TriggerOpTypes.SET, key, value, oldValue)
+    }
+    return result
+  }
+}
+```
+
+#### 只读响应转换
+
+某些场景中我们希望响应式的对象可读不可更改，我们需要配置一个只进行只读响应转换的handler；
+
+- 当发生修改时，可以在handler中拦截修改操作，如果触发则直接抛出异常。
+- 因为targetObject是只读的，也没有必要再对其进行track。在get函数中判断是否需要track
+
+```js
+export const readonlyHandlers = {
+  get: get(target, key, receiver) {
+    // 对target和key做判断
+    if (key === ReactiveFlags.IS_REACTIVE) {
+      return !isReadonly
+    } else if (key === ReactiveFlags.IS_READONLY) {
+      return isReadonly
+    } else if (
+      key === ReactiveFlags.RAW &&
+      receiver === readonlyMap.get(target)
+    ) {
+      return target
+    }
+
+    const res = Reflect.get(target, key, receiver)
+
+	// isReadonly 为 true 不再 track
+    // 注释掉 track操作：
+    /* track(target, TrackOpTypes.GET, key) */ 
+
+    if (isObject(res)) {
+      return readonly(res)
+    }
+    return res
+  },
+  // 修改操作直接进行警告 或者忽略
+  set(target, key) {
+    if (__DEV__) {
+      console.warn(
+        `Set operation on key "${String(key)}" failed: target is readonly.`,
+        target
+      )
+    }
+    return true
+  },
+  deleteProperty(target, key) {
+    if (__DEV__) {
+      console.warn(
+        `Delete operation on key "${String(key)}" failed: target is readonly.`,
+        target
+      )
+    }
+    return true
+  }
+}
+
+```
+
+#### 浅层只读响应转换
+
+同理可知，浅层只读响应转换：
+
+- 不在对targetObject进行深层次的转换
+- 拦截修改操作，直接给出警告或者忽略
+
+上代码：
+
+```js
+const shallowReadonlyHandlers = {
+    get: (target, key, receiver) {
+    if (key === ReactiveFlags.IS_REACTIVE) {
+      return !isReadonly
+    } else if (key === ReactiveFlags.IS_READONLY) {
+      return isReadonly
+    } else if (
+      key === ReactiveFlags.RAW &&
+      receiver === shallowReadonlyMap.get(target)
+    ) {
+      return target
+    }
+
+    const res = Reflect.get(target, key, receiver)
+
+   	return res
+  },
+  set(target, key) {
+    if (__DEV__) {
+      console.warn(
+        `Set operation on key "${String(key)}" failed: target is readonly.`,
+        target
+      )
+    }
+    return true
+  },
+  deleteProperty(target, key) {
+    if (__DEV__) {
+      console.warn(
+        `Delete operation on key "${String(key)}" failed: target is readonly.`,
+        target
+      )
+    }
+    return true
+  }
+}
+```
+
+#### 整理重构
+
+回看上面的代码，我们发现代码中存在大量的重复冗余的操作，非常有必要对其进行整理：
+
+- 各个handler中，配置的函数相同，只不过可能以为涉及到需求的原因，方法内部做了逻辑修改
+- 方法中代码存在重复：get函数、set函数中代码存在多处重复的代码
+  - get函数的主要功能就是获取value，进行track
+  - set函数的主要功能就是设置value，进行trigger
+  - 没必要每个handler都把两个函数的核心作用进行重复
+
+重构方法：
+
+- 通过createGetter、createSetter函数创建get、set函数，利用闭包，通过传参获取不同属性的函数
+- 利用创建出的不同方法组合handler
+
+```js
+const get = createGetter()
+const shallowGet = createGetter(false, true)
+const readonlyGet = createGetter(true)
+const shallowReadonlyGet = createGetter(true, true)
+
+function createGetter(isReadonly = false, shallow = false) {
+    
+  return function get(target, key , receiver) {
+ 
+    if (key === ReactiveFlags.IS_REACTIVE) {
+      return !isReadonly
+    } else if (key === ReactiveFlags.IS_READONLY) {
+      return isReadonly
+    } else if (
+      key === ReactiveFlags.RAW &&
+      receiver ===
+        (isReadonly
+          ? shallow
+            ? shallowReadonlyMap
+            : readonlyMap
+          : shallow
+            ? shallowReactiveMap
+            : reactiveMap
+        ).get(target)
+    ) {
+      return target
+    }
+
+    const res = Reflect.get(target, key, receiver)
+
+    if (!isReadonly) {
+      track(target, TrackOpTypes.GET, key)
+    }
+
+    if (shallow) {
+      return res
+    }
+
+    if (isObject(res)) {
+      return isReadonly ? readonly(res) : reactive(res)
+    }
+
+    return res
+  }
+}
+
+const set = createSetter()
+const shallowSet = createSetter(true)
+
+function createSetter(shallow = false) {
+  return function set(target, key, value, receiver) {
+    let oldValue = target[key]
+    if (!shallow) {
+      value = toRaw(value)
+      oldValue = toRaw(oldValue)
+      if (!isArray(target)) {
+        oldValue.value = value
+        return true
+      }
+    } else {
+      // shallow为true，不管targetObject是否是响应式，都不再更新设置oldValue的更新
+      
+    }
+
+    const result = Reflect.set(target, key, value, receiver)
+   
+   if (hasChanged(value, oldValue)) {
+      // 判断value是否发生变化，再进行track
+      trigger(target, TriggerOpTypes.SET, key, value, oldValue)
+   }
+      
+    return result
+  }
+}
+
+function deleteProperty(target, key) {
+  const hadKey = hasOwn(target, key)
+  const oldValue = target[key]
+  const result = Reflect.deleteProperty(target, key)
+  if (result && hadKey) {
+    trigger(target, TriggerOpTypes.DELETE, key, undefined, oldValue)
+  }
+  return result
+}
+
+function has(target, key) {
+  const result = Reflect.has(target, key)
+  track(target, TrackOpTypes.HAS, key)
+
+  return result
+}
+
+function ownKeys(target) {
+  track(target, TrackOpTypes.ITERATE, isArray(target) ? 'length' : ITERATE_KEY)
+  return Reflect.ownKeys(target)
+}
+
+// 组合目标 Handler
+export const mutableHandlers = {
+  get,
+  set,
+  deleteProperty,
+  has,
+  ownKeys
+}
+
+const readonlyHandlers = {
+  get: readonlyGet,
+  set(target, key) {
+    if (__DEV__) {
+      console.warn(
+        `Set operation on key "${String(key)}" failed: target is readonly.`,
+        target
+      )
+    }
+    return true
+  },
+  deleteProperty(target, key) {
+    if (__DEV__) {
+      console.warn(
+        `Delete operation on key "${String(key)}" failed: target is readonly.`,
+        target
+      )
+    }
+    return true
+  }
+}
+
+const shallowReactiveHandlers= extend(
+  {},
+  mutableHandlers,
+  {
+    get: shallowGet,
+    set: shallowSet
+  }
+)
+
+const shallowReadonlyHandlers = extend(
+  {},
+  readonlyHandlers,
+  {
+    get: shallowReadonlyGet
+  }
+)
+```
+
+
 
 ### Map&Set的变化侦测
 
@@ -1157,6 +1702,8 @@ const effectFn = effect(() => {
 ## API实现原理
 
 ### reactive
+
+
 
 ### ref
 
