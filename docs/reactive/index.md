@@ -1543,6 +1543,12 @@ const shallowReadonlyHandlers = {
 - 利用创建出的不同方法组合handler
 
 ```js
+// 用于处理target与proxy之间的映射
+const reactiveMap = new WeakMap()
+const shallowReactiveMap = new WeakMap()
+const readonlyMap = new WeakMap()
+const shallowReadonlyMap = new WeakMap()
+
 const get = createGetter()
 const shallowGet = createGetter(false, true)
 const readonlyGet = createGetter(true)
@@ -1689,15 +1695,468 @@ const shallowReadonlyHandlers = extend(
 )
 ```
 
-
-
 ### Map&Set的变化侦测
+
+前面我们学习了Object & Array的handler的配置及各个方法的实现。同样的逻辑，也适用于Map、Set类型的数据：
+
+- 拆分处理各个method
+- 根据需要配置handler
+
+#### 经过代理的Map、Set实例
+
+直接上代码，让我们看下map、set经过proxy代理后，在进行操作会发生什么事情？
+
+**经过代理的map**
+
+```js
+let map = new Map([[1, 2], [3, 4], [5, 6]]);
+let mapHandler = {
+  get(target, key, receiver) {
+     console.log(`key: ${key}`) // 进行 for of 遍历时需要注释掉
+    if(key === "size") {
+      return Reflect.get(target, "size", target)
+    }
+    var value = Reflect.get(target, key, receiver)
+    // 查看 value 类型
+    console.log(typeof value)
+      
+    // 注意：这里需要注意改变value的this指向
+    return typeof value == 'function' ? value.bind(target) : value
+  },
+  set(target, key, value, receiver) {
+    console.log(`set ${key} : ${value}`)
+    return Reflect.set(target, key, value, receiver)
+  }
+}
+let proxyMap = new Proxy(map, mapHandler);
+// size 属性
+console.log(proxyMap.size) 
+// 输出:
+// key: size  
+// 3
+
+// get 方法
+console.log(proxyMap.get(1))
+// 输出:
+// key: get
+// value: function
+// 2
+
+// set 方法
+console.log(proxyMap.set('name', 'daRui')) 
+// 输出:
+// key: set  
+// value: function  
+// {1 => 2, 3 => 4, 5 => 6, "name" => "daRui"}
+
+// has 方法
+console.log(proxyMap.has('name'))
+// 输出：
+// key: has
+// value: function
+// true
+
+// delete
+console.log(proxyMap.delete(1))
+// 输出:
+// key: delete
+// value: function
+// true
+
+// keys 方法
+console.log(proxyMap.keys())
+// 输出
+// key: keys
+// value: function
+// MapIterator {3, 5, "name"}
+
+// values 方法
+console.log(proxyMap.values())
+// 输出
+// key: values
+// value: function
+// MapIterator {4, 6, "daRui"}
+
+// entries 方法
+console.log(proxyMap.entries())
+
+// forEach
+proxyMap.forEach(item => {
+  console.log(item)
+});
+// 输出
+// key: entries
+// value: function
+// MapIterator {3 => 4, 5 => 6, "name" => "daRui"}
+// key: forEach
+// value: function
+// 4
+// 6
+// daRui
+
+// 相当于entries()
+// 需要注释 console, 否则抛出 Uncaught TypeError: Cannot convert a Symbol value to a string
+for(let [key, value] of proxyMap) {
+  console.log(key, value)
+}
+// 输出
+// 3, 4
+// 5, 6
+// "name", "daRui"
+```
+
+**经过代理的set**
+
+```js
+let set = new Set([1, 2, 3, 4, 5])
+let setHandler = {
+  get(target, key, value, receiver) {
+    if (key === 'size') {
+      return Reflect.get(target, 'size', target)
+    }
+    console.log(`key: ${key}`)
+    var value = Reflect.get(target, key, receiver)
+    console.log(`value: ${typeof value}`)
+    return typeof value == 'function' ? value.bind(target) : 
+  },
+  set(target, key, value, receiver) {
+    console.log(`set ${key} : ${value}`)
+    return Reflect.set(target, key, value, receiver)
+  },
+}
+let proxySet = new Proxy(set, setHandler)
+
+// add
+console.log(proxySet.add('name', 'daRui'))
+// 输出
+// key: add
+// value: function 
+// true
+// 6
+
+// has
+console.log(proxySet.has('name'))
+// 输出
+// key: has
+// value: function
+// true
+      
+// size
+console.log(proxySet.size)
+// 输出
+// key: size
+// 6
+
+// delete
+console.log(proxySet.delete(1))
+// 输出
+// key: delete
+// value: function
+// true
+
+// keys
+console.log(proxySet.keys())
+// 输出
+// key: keys
+// value: function
+// SetIterator {2, 3, 4, 5, "name"}
+
+// values
+console.log(proxySet.values())
+// 输出
+// key: values
+// value: function
+// SetIterator {2, 3, 4, 5, "name"}
+
+// entries
+console.log(proxySet.entries())
+// 输出
+// key: entries
+// value: function
+// SetIterator {2 => 2, 3 => 3, 4 => 4, 5 => 5, "name" => "name"}
+      
+// 相当于entries
+proxySet.forEach((item) => {
+  console.log(item)
+})
+// 输出
+// key: forEach
+// value: function
+// 2
+// 3
+// 4
+// 5
+// name
+
+for (let value of proxySet) {
+  console.log(value)
+}
+// 输出
+// value: function
+// 2
+// 3
+// 4
+// 5
+// name
+
+// clear
+console.log(proxySet.clear())
+// 输出
+// key: clear
+// value: function
+```
+
+- 这是因为proxy代理的是Map、Set的实例
+- 我们调用的是实例上的方法，就会触发get函数
+- 故Map & Set类型的targetObject，不能使用与Object & Array相同的handler
+- 需要为Map & Set创建方法，并配置handler
 
 #### 增删改查
 
-#### 迭代模式&遍历模式
+- map & set类型需配置的handler与Object & Array相同：响应式、浅层、只读、浅层只读
+- 实例方法都需要独立处理
+
+前置补充：
+
+- Vue3会为每个被转换的对象，设置一个`ReactiveFlags.RAW`属性
+- 值是原始value
+- toRaw函数即使通过递归，找到原始值
+
+```js 
+function toRaw(observed) {
+  return (
+    (observed && toRaw((observed)[ReactiveFlags.RAW])) || observed
+  )
+}
+```
+
+- 配置不同的handler，就去要用相应的响应转换函数处理result
+- 根据参数类型获去相应的转换函数
+
+```js
+const toReactive = (value ) => isObject(value) ? reactive(value) : value
+
+const toReadonly = (value) => isObject(value) ? readonly(value) : value
+
+const toShallow = (value) => value
+```
+
+- get函数
+  - 
+
+```js
+function get(target, key,isReadonly = false,isShallow = false) {
+  target = target[ReactiveFlags.RAW]
+  const rawTarget = toRaw(target)
+  const rawKey = toRaw(key)
+  // key 发生变化, track key
+  if (key !== rawKey) {
+    !isReadonly && track(rawTarget, TrackOpTypes.GET, key)
+  }
+  
+  !isReadonly && track(rawTarget, TrackOpTypes.GET, rawKey)
+  const { has } = getProto(rawTarget)
+  // 根据参数获取对应的转换函数
+  const wrap = isShallow ? toShallow : isReadonly ? toReadonly : toReactive
+  
+  if (has.call(rawTarget, key)) {
+    return wrap(target.get(key))
+  } else if (has.call(rawTarget, rawKey)) {
+    return wrap(target.get(rawKey))
+  } else if (target !== rawTarget) {
+    // #3602 readonly(reactive(Map))
+    // ensure that the nested reactive `Map` can do tracking for itself
+    target.get(key)
+  }
+}
+
+```
+
+- set函数
+
+```js
+function set(this, key, value) {
+  value = toRaw(value)
+  const target = toRaw(this)
+  const { has, get } = getProto(target)
+
+  let hadKey = has.call(target, key)
+  if (!hadKey) {
+    key = toRaw(key)
+    hadKey = has.call(target, key)
+  } else if (__DEV__) {
+    checkIdentityKeys(target, has, key)
+  }
+
+  const oldValue = get.call(target, key)
+  target.set(key, value)
+  if (!hadKey) {
+    trigger(target, TriggerOpTypes.ADD, key, value)
+  } else if (hasChanged(value, oldValue)) {
+    trigger(target, TriggerOpTypes.SET, key, value, oldValue)
+  }
+  return this
+}
+```
+
+- has
+
+```js
+
+function has(this, key, isReadonly = false) {
+  const target = (this)[ReactiveFlags.RAW]
+  const rawTarget = toRaw(target)
+  const rawKey = toRaw(key)
+  if (key !== rawKey) {
+    !isReadonly && track(rawTarget, TrackOpTypes.HAS, key)
+  }
+  !isReadonly && track(rawTarget, TrackOpTypes.HAS, rawKey)
+  return key === rawKey
+    ? target.has(key)
+    : target.has(key) || target.has(rawKey)
+}
+```
+
+- add
+
+```js
+function add(this, value) {
+  value = toRaw(value)
+  const target = toRaw(this)
+  const proto = getProto(target)
+  const hadKey = proto.has.call(target, value)
+  if (!hadKey) {
+    target.add(value)
+    trigger(target, TriggerOpTypes.ADD, value, value)
+  }
+  return this
+}
+
+```
+
+- size
+
+```js
+function size(target, isReadonly = false) {
+  target = (target as any)[ReactiveFlags.RAW]
+  !isReadonly && track(toRaw(target), TrackOpTypes.ITERATE, ITERATE_KEY)
+  return Reflect.get(target, 'size', target)
+}
+```
+
+- clear
+
+```js
+function clear(this) {
+  const target = toRaw(this)
+  const hadItems = target.size !== 0
+  const oldTarget = __DEV__
+    ? isMap(target)
+      ? new Map(target)
+      : new Set(target)
+    : undefined
+  // forward the operation before queueing reactions
+  const result = target.clear()
+  if (hadItems) {
+    trigger(target, TriggerOpTypes.CLEAR, undefined, undefined, oldTarget)
+  }
+  return result
+}
+```
+
+- delete
+
+```js
+function deleteEntry(this, key) {
+  const target = toRaw(this)
+  const { has, get } = getProto(target)
+  let hadKey = has.call(target, key)
+  if (!hadKey) {
+    key = toRaw(key)
+    hadKey = has.call(target, key)
+  } else if (__DEV__) {
+    checkIdentityKeys(target, has, key)
+  }
+
+  const oldValue = get ? get.call(target, key) : undefined
+  // forward the operation before queueing reactions
+  const result = target.delete(key)
+  if (hadKey) {
+    trigger(target, TriggerOpTypes.DELETE, key, undefined, oldValue)
+  }
+  return result
+}
+```
+
+
+
+#### 遍历模式&迭代模式
+
+- forEach
+
+```js
+function createForEach(isReadonly, isShallow) {
+  return function forEach(this,callback,thisArg) {
+    const observed = this 
+    const target = observed[ReactiveFlags.RAW]
+    const rawTarget = toRaw(target)
+    const wrap = isShallow ? toShallow : isReadonly ? toReadonly : toReactive
+    !isReadonly && track(rawTarget, TrackOpTypes.ITERATE, ITERATE_KEY)
+    return target.forEach((value, key) => {
+      return callback.call(thisArg, wrap(value), wrap(key), observed)
+    })
+  }
+}
+```
+
+- iterable
+
+```js
+function createIterableMethod(method, isReadonly, isShallow) {
+  return function(this, ...args) {
+    const target = (this as any)[ReactiveFlags.RAW]
+    const rawTarget = toRaw(target)
+    const targetIsMap = isMap(rawTarget)
+    const isPair =
+      method === 'entries' || (method === Symbol.iterator && targetIsMap)
+    const isKeyOnly = method === 'keys' && targetIsMap
+    const innerIterator = target[method](...args)
+    const wrap = isShallow ? toShallow : isReadonly ? toReadonly : toReactive
+    !isReadonly &&
+      track(
+        rawTarget,
+        TrackOpTypes.ITERATE,
+        isKeyOnly ? MAP_KEY_ITERATE_KEY : ITERATE_KEY
+      )
+ 
+    return {
+      // iterator protocol
+      next() {
+        const { value, done } = innerIterator.next()
+        return done
+          ? { value, done }
+          : {
+              value: isPair ? [wrap(value[0]), wrap(value[1])] : wrap(value),
+              done
+            }
+      },
+      // iterable protocol
+      [Symbol.iterator]() {
+        return this
+      }
+    }
+  }
+}
+```
+
+
 
 #### 创建Handler
+
+```js
+```
+
+
 
 ## API实现原理
 
