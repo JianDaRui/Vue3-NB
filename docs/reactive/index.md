@@ -2070,8 +2070,7 @@ function has(this, key, isReadonly = false) {
 
 - add函数
   - 用于Set实例添加元素，添加的元素唯一
-  - 如果value，先前不存在，则会使target发生更改
-  - 需要进行trigger操作，触发响应
+  - 如果添加的value先前不存在，则会使target发生更改，需要进行trigger操作，触发响应
 
 ```js
 function add(this, value) {
@@ -2094,20 +2093,29 @@ function add(this, value) {
 
 ```
 
-- size
+- size属性
+  - 用于返回Set/Map的成员总数
+  - 不会触发target的变化
+  - 但是需要进行track
 
 ```js
 function size(target, isReadonly = false) {
-  target = (target as any)[ReactiveFlags.RAW]
+  // 获取原始target
+  target = target[ReactiveFlags.RAW]
+  // 如果非只读 则进行track
   !isReadonly && track(toRaw(target), TrackOpTypes.ITERATE, ITERATE_KEY)
+  // 返回结果
   return Reflect.get(target, 'size', target)
 }
 ```
 
-- clear
+- clear函数
+  - 用于清除Set/Map实例的所有成员
+  - 会改变target，需要调用trigger函数
 
 ```js
 function clear(this) {
+  // 获取原始对象
   const target = toRaw(this)
   const hadItems = target.size !== 0
   const oldTarget = __DEV__
@@ -2115,33 +2123,42 @@ function clear(this) {
       ? new Map(target)
       : new Set(target)
     : undefined
-  // forward the operation before queueing reactions
+  // 在触发响应之前调用clear
   const result = target.clear()
   if (hadItems) {
+    // 如果原始对象不为空，则需要trigger
     trigger(target, TriggerOpTypes.CLEAR, undefined, undefined, oldTarget)
   }
   return result
 }
 ```
 
-- delete
+- delete函数
+  - 用于删除Set/Map实例的某个成员
+  - 会更改原始target，需要trigger
 
 ```js
 function deleteEntry(this, key) {
+    
+  // 获取原始target
   const target = toRaw(this)
   const { has, get } = getProto(target)
+  
+  // 判断key 或者 原始key是否存在
   let hadKey = has.call(target, key)
   if (!hadKey) {
     key = toRaw(key)
     hadKey = has.call(target, key)
-  } else if (__DEV__) {
-    checkIdentityKeys(target, has, key)
-  }
-
+  } 
+    
+  // 获取原始值
   const oldValue = get ? get.call(target, key) : undefined
-  // forward the operation before queueing reactions
+  
+  // 获取执行结果 
   const result = target.delete(key)
   if (hadKey) {
+      
+    // 如果成员先前存在，则trigger
     trigger(target, TriggerOpTypes.DELETE, key, undefined, oldValue)
   }
   return result
@@ -2152,24 +2169,40 @@ function deleteEntry(this, key) {
 
 #### 遍历模式&迭代模式
 
-- forEach
+- forEach函数
+  - 属于设计模式中的遍历器模式
+  - 用于遍历Set/Map实例，接受一个回调，会将key & value 传给callback
+  - 针对不同的响应接口，我们根据判断创建forEach
+  - 我们可以通过参数isReadonly, isShallow获取不同的forEach
+  - forEach函数并不会更改原始对象，只需进行track工作
 
 ```js
 function createForEach(isReadonly, isShallow) {
   return function forEach(this,callback,thisArg) {
-    const observed = this 
+    const observed = this
+    // 获取原始target
     const target = observed[ReactiveFlags.RAW]
     const rawTarget = toRaw(target)
+    
+    // 根据参数获取响应转换函数
     const wrap = isShallow ? toShallow : isReadonly ? toReadonly : toReactive
+    
+    // 非只读情况下 进行track
     !isReadonly && track(rawTarget, TrackOpTypes.ITERATE, ITERATE_KEY)
+    
+    // 调用原始对象上的forEach 方法，将value & key传给回调
     return target.forEach((value, key) => {
+        
+      // 传递value & key时进行转换
       return callback.call(thisArg, wrap(value), wrap(key), observed)
     })
   }
 }
 ```
 
-- iterable
+- iterable迭代器模式
+  - Map/Set的实例有三种方法：keys()、values()、entries()
+  - 启本质是通过
 
 ```js
 function createIterableMethod(method, isReadonly, isShallow) {
