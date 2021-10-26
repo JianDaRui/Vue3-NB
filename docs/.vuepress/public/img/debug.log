@@ -1,0 +1,10 @@
+[1026/015538.212:INFO:crash_reporting.cc(219)] Crash reporting enabled for process: browser
+[1026/015538.354:INFO:crash_reporting.cc(219)] Crash reporting enabled for process: gpu-process
+[1026/015538.502:INFO:crash_reporting.cc(219)] Crash reporting enabled for process: utility
+[1026/015738.320:INFO:crash_reporting.cc(219)] Crash reporting enabled for process: gpu-process
+[1026/093537.947:WARNING:angle_platform_impl.cc(45)] compileToBinary(256): 
+C:\fakepath(75,10-46): warning X3571: pow(f, e) will not work for negative f, use abs(f) or conditionally handle negative values if you expect them
+C:\fakepath(98,10-46): warning X3571: pow(f, e) will not work for negative f, use abs(f) or conditionally handle negative values if you expect them
+
+[1026/094725.071:ERROR:gl_utils.cc(312)] [.RendererMainThread-0CC07D50] GL_INVALID_FRAMEBUFFER_OPERATION: Draw framebuffer is incomplete
+[1026/095140.112:WARNING:spdy_session.cc(3306)] Received HEADERS for invalid stream 145
