@@ -1906,8 +1906,8 @@ console.log(proxySet.clear())
 // value: function
 ```
 
-- 这是因为proxy代理的是Map、Set的实例
-- 我们调用的是实例上的方法，就会触发get函数
+- 出现上面输出结果是因为proxy代理的是Map、Set的实例
+- 我们调用的是实例上的方法，就会触发访问方法的getter函数
 - 故Map & Set类型的targetObject，不能使用与Object & Array相同的handler
 - 需要为Map & Set创建方法，并配置handler
 
@@ -1915,12 +1915,22 @@ console.log(proxySet.clear())
 
 - map & set类型需配置的handler与Object & Array相同：响应式、浅层、只读、浅层只读
 - 实例方法都需要独立处理
+- 设计思路
+  - 因为实例方法都是先触发方法访问的getter函数
+  - 所以配置的handler对象只需有一个getter函数
+  - 在get函数内部拦截方法
+  - 在方法内部做track/trigger工作
+  - 通过map/set的原始方法去获取value，并返回
 
-前置补充：
+前置知识补充：
 
 - Vue3会为每个被转换的对象，设置一个`ReactiveFlags.RAW`属性
-- 值是原始value
-- toRaw函数即使通过递归，找到原始值
+- 值是原始targetObject
+- toRaw函数
+  - 返回 [`reactive`](https://v3.cn.vuejs.org/api/basic-reactivity.html#reactive) 或 [`readonly`](https://v3.cn.vuejs.org/api/basic-reactivity.html#readonly) 代理的原始targetObject
+  - 可用于临时读取数据而无需承担代理访问/跟踪的开销
+  - 也可用于写入数据而避免触发更改
+  - 原理：通过递归，脱proxy，找到原始值
 
 ```js 
 function toRaw(observed) {
@@ -1931,7 +1941,7 @@ function toRaw(observed) {
 ```
 
 - 配置不同的handler，就去要用相应的响应转换函数处理result
-- 根据参数类型获去相应的转换函数
+- 可以根据参数类型获去相应的转换函数
 
 ```js
 const toReactive = (value ) => isObject(value) ? reactive(value) : value
@@ -1939,35 +1949,52 @@ const toReactive = (value ) => isObject(value) ? reactive(value) : value
 const toReadonly = (value) => isObject(value) ? readonly(value) : value
 
 const toShallow = (value) => value
-
+// 获取原型
 const getProto = (v) => Reflect.getPrototypeOf(v)
 ```
 
+> 这里我们直接讲解Vue3 reactive中的源码部分，当然代码是经过省略的，但是会保留核心逻辑。
+>
+> 先理解主要思路，在关注细节。
+
 - get函数
-  - 
+  - 用于Map实例根据key获取value
+  - map类型的key可以是引用类型，也可能是代理实例
+  - target & key都需要进行toRaw操作
+  - 需要根须参数判断是否需要进行track，收集相关依赖
+  - 需要调用原始target的 get方法获取value
+  - 最后需要返回经过代理的value
 
 ```js
-function get(target, key,isReadonly = false,isShallow = false) {
+function get(target, key, isReadonly = false,isShallow = false) {
+  // 获取原始对象，原始key
   target = target[ReactiveFlags.RAW]
   const rawTarget = toRaw(target)
   const rawKey = toRaw(key)
+  
+  /**
+  * 我自己通过 looseEqual函数 对比了 target[ReactiveFlags.RAW] 与 rawTarget。
+  * 返回true，两者没有区别。但是我并不明白尤大为什么这么设计，望大佬指教
+  */
+  
   // key 发生变化, track key
   if (key !== rawKey) {
     !isReadonly && track(rawTarget, TrackOpTypes.GET, key)
   }
-  
+    
+  // track rawKey
   !isReadonly && track(rawTarget, TrackOpTypes.GET, rawKey)
   const { has } = getProto(rawTarget)
+  
   // 根据参数获取对应的转换函数
   const wrap = isShallow ? toShallow : isReadonly ? toReadonly : toReactive
   
+  // 返回经过代理的结果
   if (has.call(rawTarget, key)) {
     return wrap(target.get(key))
   } else if (has.call(rawTarget, rawKey)) {
     return wrap(target.get(rawKey))
   } else if (target !== rawTarget) {
-    // #3602 readonly(reactive(Map))
-    // ensure that the nested reactive `Map` can do tracking for itself
     target.get(key)
   }
 }
@@ -1975,59 +2002,90 @@ function get(target, key,isReadonly = false,isShallow = false) {
 ```
 
 - set函数
+  - 用于Map类型添加元素
+  - map类型添加元素，有可能是新增key:value，有可能是修改
+  - 需要对key是否存在进行判断
+  - set函数会修改target，需要进行trigger，触发响应
 
 ```js
 function set(this, key, value) {
+  // 脱proxy，获取原始value & target
   value = toRaw(value)
   const target = toRaw(this)
   const { has, get } = getProto(target)
-
+  
+  // 判断 key是否存在于target
   let hadKey = has.call(target, key)
   if (!hadKey) {
     key = toRaw(key)
     hadKey = has.call(target, key)
-  } else if (__DEV__) {
-    checkIdentityKeys(target, has, key)
   }
-
+    
+  // 获取旧值
   const oldValue = get.call(target, key)
+  
+  // 设置 key: vlaue
   target.set(key, value)
+    
+  // 调用trigger，触发响应
   if (!hadKey) {
+      
+    // 先前没有key，进行的是添加操作
     trigger(target, TriggerOpTypes.ADD, key, value)
   } else if (hasChanged(value, oldValue)) {
+      
+    // 先前存在key，进行的是设置操作
     trigger(target, TriggerOpTypes.SET, key, value, oldValue)
   }
   return this
 }
 ```
 
-- has
+- has函数
+  - 可用于Set/Map实例判断某元素是否存在
+  - has属性并不会更改targetObject，
+  - 属于对target的访问操作
+  - 需要对key进行track操作
 
 ```js
 
 function has(this, key, isReadonly = false) {
+  // 获取原始target key
   const target = (this)[ReactiveFlags.RAW]
   const rawTarget = toRaw(target)
   const rawKey = toRaw(key)
+  
+  // 根据判断进行track
   if (key !== rawKey) {
     !isReadonly && track(rawTarget, TrackOpTypes.HAS, key)
   }
   !isReadonly && track(rawTarget, TrackOpTypes.HAS, rawKey)
+  
+  // 调用原始target的has方法判断key是否存在
   return key === rawKey
     ? target.has(key)
     : target.has(key) || target.has(rawKey)
 }
 ```
 
-- add
+- add函数
+  - 用于Set实例添加元素，添加的元素唯一
+  - 如果value，先前不存在，则会使target发生更改
+  - 需要进行trigger操作，触发响应
 
 ```js
 function add(this, value) {
+  // 获取原始对象
   value = toRaw(value)
   const target = toRaw(this)
+  
+  // 获取原型，调用原型上的方法判断value是否存在
+  // 因为set添加的value都是唯一的
+  // 故只有 key 不存在的时候需要 trigger
   const proto = getProto(target)
   const hadKey = proto.has.call(target, value)
   if (!hadKey) {
+    // 添加元素，调用trigger函数，触发响应
     target.add(value)
     trigger(target, TriggerOpTypes.ADD, value, value)
   }
@@ -2309,7 +2367,7 @@ const shallowReadonlyCollectionHandlers = {
 
 ![baseHandlers](D:\vue3深入浅出\docs\.vuepress\public\img\baseHandlers.png)
 
-![collectionHandlers](D:\vue3深入浅出\docs\.vuepress\public\img\collectionHandlers(1).png)
+![collectionHandlers](D:\vue3深入浅出\docs\.vuepress\public\img\collectionHandlers (1).png)
 
 ## API实现原理
 
@@ -2368,3 +2426,5 @@ const shallowReadonlyCollectionHandlers = {
 #### stop
 
 ## 总结
+
+[]: 
