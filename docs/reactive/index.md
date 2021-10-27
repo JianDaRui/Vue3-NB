@@ -2467,7 +2467,7 @@ const shallowReadonlyCollectionHandlers = {
 
 ## API实现原理
 
-### reactive
+### `reactive`
 
 前面我们已经知道如何配置Handler接下来要创建不同的响应转换函数，创建函数其实就是给Proxy，配置不同的handler。让我们改写下在第一章节中代理模式中提到的createReactiveObject函数：
 
@@ -2501,7 +2501,7 @@ function createReactiveObject(target, handlers, proxyMap) {
 }
 ```
 
-**改写createReactiveObject**：
+**改写`createReactiveObject`**：
 
 - 将handlers作为参数传递给函数
 - 在内部通过判断target的类型，配置handlers
@@ -2551,7 +2551,7 @@ function createReactiveObject(target, isReadonly, baseHandlers, collectionHandle
 }
 ```
 
-#### reactive
+#### `reactive`
 
 - 返回对象的响应式副本
 - 对target进行“深层”代理，影响所有嵌套 property
@@ -2572,7 +2572,7 @@ function reactive(target) {
 }
 ```
 
-#### shallowReactive
+#### `shallowReactive`
 
 - 创建一个响应式代理，只跟踪其自身 property 的响应性
 - 但不执行嵌套对象的深层响应式转换
@@ -2589,7 +2589,7 @@ function shallowReactive(target) {
 }
 ```
 
-#### readonly
+#### `readonly`
 
 - 接受一个对象 (响应式或纯对象) 或 [ref](https://v3.cn.vuejs.org/api/refs-api.html#ref) 并返回原始对象的只读代理。
 - 只读代理是深层的：任何被访问的嵌套 property 也是只读的。
@@ -2608,7 +2608,7 @@ function readonly(target) {
 
 
 
-#### shallowReadonly
+#### `shallowReadonly`
 
 - 创建一个 proxy，使其自身的 property 为只读
 - 但不执行嵌套对象的深度只读转换
@@ -2625,7 +2625,7 @@ export function shallowReadonly(target) {
 }
 ```
 
-#### isReactive
+#### `isReactive`
 
 - 检查对象是否是由 [`reactive`](https://v3.cn.vuejs.org/api/basic-reactivity.html#reactive) 创建的响应式代理
 - 可以在observed阶段给target设置一个`[ReactiveFlags.RAW]/[ReactiveFlags.IS_REACTIVE]`属性
@@ -2639,7 +2639,7 @@ function isReactive(value) {
 }
 ```
 
-#### isReadonly
+#### `isReadonly`
 
 - 检查对象是否是由 [`readonly`](https://v3.cn.vuejs.org/api/basic-reactivity.html#readonly) 创建的只读代理。
 - 原理同上
@@ -2650,7 +2650,7 @@ function isReadonly(value) {
 }
 ```
 
-#### isProxy
+#### `isProxy`
 
 - 检查对象是否是由 [`reactive`](https://v3.cn.vuejs.org/api/basic-reactivity.html#reactive) 或 [`readonly`](https://v3.cn.vuejs.org/api/basic-reactivity.html#readonly) 创建的 proxy
 - 内部其实是调用isReactive | isReadonly 方法进行的判断
@@ -2661,11 +2661,11 @@ function isProxy(value: unknown): boolean {
 }
 ```
 
-#### toRaw
+#### `toRaw`
 
 - 前面已经说过，不再赘述
 
-#### markRaw
+#### `markRaw`
 
 - 标记一个对象，使其永远不会转换为 proxy。[返回对象本身](https://v3.cn.vuejs.org/api/basic-reactivity.html#markraw)。
 - 原理：给value定义一个ReactiveFlags.SKIP属性并设置值为true
@@ -2678,39 +2678,39 @@ function markRaw (value) {
 }
 ```
 
-### ref
+### `ref`
 
-#### ref
+#### `ref`
 
-#### shallowRef
+#### `shallowRef`
 
-#### isRef
+#### `isRef`
 
-#### toRef
+#### `toRef`
 
-#### toRefs
+#### `toRefs`
 
-#### customRef
+#### `customRef`
 
-#### triggerRef
+#### `triggerRef`
 
-### computed
+### `computed`
 
-#### computed
+#### `computed`
 
-#### ComputedRef
+#### `ComputedRef`
 
-### watch
+### `watch`
 
-#### watch
+#### `watch`
 
-#### watchEffect
+#### `watchEffect`
 
-### effect
+### `effect`
 
-#### effect
+#### `effect`
 
-#### stop
+#### `stop`
 
 ## 总结
 
