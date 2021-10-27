@@ -2202,30 +2202,49 @@ function createForEach(isReadonly, isShallow) {
 
 - iterable迭代器模式
   - Map/Set的实例有三种方法：keys()、values()、entries()
-  - 启本质是通过
+  - 这三种方法都遵循可迭代协议 & 可迭代器协议
+  - Vue3内部同样对这三个方法做了处理
+  - 通过自行实现迭代器，模拟这三个方法
+  - 在创建的迭代器内部，通过调用原始对象的方法获取result
+  - 进行track，并对result进行响应处理
+  - 最后在返回的可迭代对象中，返回经过响应转换的result
+  - 下面代码的注释中已经标识出主要逻辑
 
 ```js
 function createIterableMethod(method, isReadonly, isShallow) {
   return function(this, ...args) {
-    const target = (this as any)[ReactiveFlags.RAW]
+      
+    // 获取原始对象
+    const target = (this)[ReactiveFlags.RAW]
     const rawTarget = toRaw(target)
+    
+    // 判断原始对象是否是Map类型
     const targetIsMap = isMap(rawTarget)
+    
+    // entries() 返回的是一个可迭代的二维数组
     const isPair =
       method === 'entries' || (method === Symbol.iterator && targetIsMap)
+    
     const isKeyOnly = method === 'keys' && targetIsMap
+    
+    // 获取原始对象方法返回的内部迭代器
     const innerIterator = target[method](...args)
+    
     // 根据参数获取相应的转换函数
     const wrap = isShallow ? toShallow : isReadonly ? toReadonly : toReactive
+    
+    // 非只读情况下，进行track
     !isReadonly &&
-      track(
-        rawTarget,
-        TrackOpTypes.ITERATE,
-        isKeyOnly ? MAP_KEY_ITERATE_KEY : ITERATE_KEY
-      )
- 
+      track(rawTarget, 
+            TrackOpTypes.ITERATE, 
+            isKeyOnly ? MAP_KEY_ITERATE_KEY : ITERATE_KEY 
+           )
+    
+ 	// 返回一个可迭代对象
     return {
       // 遵循可迭代器协议
       next() {
+        // 调用内部可迭代器获取结果
         const { value, done } = innerIterator.next()
         return done
           ? { value, done }
@@ -2242,13 +2261,47 @@ function createIterableMethod(method, isReadonly, isShallow) {
     }
   }
 }
+
+const iteratorMethods = ['keys', 'values', 'entries', Symbol.iterator]
+// 遍历添加方法
+iteratorMethods.forEach(method => {
+  mutableInstrumentations[method] = createIterableMethod(
+    method,
+    false,
+    false
+  )
+  readonlyInstrumentations[method] = createIterableMethod(
+    method,
+    true,
+    false
+  )
+  shallowInstrumentations[method] = createIterableMethod(
+    method,
+    false,
+    true
+  )
+  shallowReadonlyInstrumentations[method] = createIterableMethod(
+    method,
+    true,
+    true
+  )
+})
 ```
 
-
+> 对迭代器或者可迭代协议不熟悉的同学可以点击下面链接
+>
+> 迭代器协议：https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Iteration_protocols
+>
+> 迭代器：https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Guide/Iterators_and_Generators
+>
+> 迭代器：https://es6.ruanyifeng.com/#docs/iterator
 
 #### 创建Handler
 
+上面我们已经明白了各种方法的创建工作，接下来就是做类似Object & Array类型相同的工作——配置出不同的handler。
+
 ```js
+// 对于只读情况下会触发更改的操作，我们统一使用createReadonlyMethod方法创建
 function createReadonlyMethod(type) {
   return function(this, ...args) {
     if (__DEV__) {
@@ -2349,7 +2402,7 @@ iteratorMethods.forEach(method => {
     true
   )
 })
-
+// 创建getter函数
 function createInstrumentationGetter(isReadonly, shallow) {
   const instrumentations = shallow
     ? isReadonly
@@ -2358,7 +2411,8 @@ function createInstrumentationGetter(isReadonly, shallow) {
     : isReadonly
       ? readonlyInstrumentations
       : mutableInstrumentations
-
+  
+  // get函数
   return (target, key, receiver) => {
     if (key === ReactiveFlags.IS_REACTIVE) {
       return !isReadonly
@@ -2367,7 +2421,10 @@ function createInstrumentationGetter(isReadonly, shallow) {
     } else if (key === ReactiveFlags.RAW) {
       return target
     }
-
+    
+    // 注意这里给Reflect.get传递的第一个参数
+    // instrumentations 是我们创建的 【仪表盘】(一翻译出来就变味了~)
+    // instrumentations方法中传递参数中的 this 就是调用get函数时的上下文
     return Reflect.get(
       hasOwn(instrumentations, key) && key in target
         ? instrumentations
@@ -2378,7 +2435,7 @@ function createInstrumentationGetter(isReadonly, shallow) {
   }
 }
 
-// 
+// 组合Handler
 const mutableCollectionHandlers = {
   get: createInstrumentationGetter(false, false)
 }
@@ -2398,7 +2455,13 @@ const shallowReadonlyCollectionHandlers = {
 
 ```
 
+最后再用两张图让我们总结下上面的过程吧！
+
+**baseHandlers**：
+
 ![baseHandlers](D:\vue3深入浅出\docs\.vuepress\public\img\baseHandlers.png)
+
+**collectionHandlers**：
 
 ![collectionHandlers](D:\vue3深入浅出\docs\.vuepress\public\img\collectionHandlers (1).png)
 
@@ -2406,23 +2469,214 @@ const shallowReadonlyCollectionHandlers = {
 
 ### reactive
 
+前面我们已经知道如何配置Handler接下来要创建不同的响应转换函数，创建函数其实就是给Proxy，配置不同的handler。让我们改写下在第一章节中代理模式中提到的createReactiveObject函数：
+
+**第一章节写的响应函数**
+
+```js
+// 响应转换函数
+function createReactiveObject(target, handlers, proxyMap) {
+    
+   // 1. 仅代理对象类型
+  if (!isObject(target)) {
+    if (__DEV__) {
+      console.warn(`value cannot be made reactive: ${String(target)}`)
+    }
+    return target
+  }
+ 
+  // 2. 判断target是否已经经过代理
+  const existingProxy = proxyMap.get(target)
+  if (existingProxy) {
+    return existingProxy
+  }
+  // 3. 进行代理转换
+  const proxy = new Proxy(target,  handlers)
+  
+  // 4. 创建target与代理实例之间的映射，方便下次进行判断
+  proxyMap.set(target, proxy)
+    
+  // 5.返回代理实例
+  return proxy
+}
+```
+
+**改写createReactiveObject**：
+
+- 将handlers作为参数传递给函数
+- 在内部通过判断target的类型，配置handlers
+
+```js
+
+function createReactiveObject(target, isReadonly, baseHandlers, collectionHandlers, proxyMap ) {
+  if (!isObject(target)) {
+    if (__DEV__) {
+      console.warn(`value cannot be made reactive: ${String(target)}`)
+    }
+    return target
+  }
+    
+  // 如果target已经经过代理直接返回
+  // 经过readonly()转换的targetObject例外
+  if (
+    target[ReactiveFlags.RAW] &&
+    !(isReadonly && target[ReactiveFlags.IS_REACTIVE])
+  ) {
+    return target
+  }
+    
+  // 如果target已经有相应的代理 直接返回
+  const existingProxy = proxyMap.get(target)
+  if (existingProxy) {
+    return existingProxy
+  }
+    
+  // 只有在白名单内的 targetType 可以经过代理
+  const targetType = getTargetType(target)
+  if (targetType === TargetType.INVALID) {
+    return target
+  }
+    
+  // 根据targetType 给Proxy传不同的handler
+  // Map & Set类型传collectionHandlers
+  // Object & Array类型传 baseHandlers
+  const proxy = new Proxy(
+    target,
+    targetType === TargetType.COLLECTION ? collectionHandlers : baseHandlers
+  )
+  
+  // 保存target 与 proxy之间的关系，方便下次判断
+  proxyMap.set(target, proxy)
+  return proxy
+}
+```
+
 #### reactive
+
+- 返回对象的响应式副本
+- 对target进行“深层”代理，影响所有嵌套 property
+
+```js
+function reactive(target) {
+  // 如果target是只读的，直接返回target
+  if (target && (target)[ReactiveFlags.IS_READONLY]) {
+    return target
+  }
+  return createReactiveObject(
+    target,
+    false,
+    mutableHandlers,
+    mutableCollectionHandlers,
+    reactiveMap
+  )
+}
+```
 
 #### shallowReactive
 
+- 创建一个响应式代理，只跟踪其自身 property 的响应性
+- 但不执行嵌套对象的深层响应式转换
+
+```js
+function shallowReactive(target) {
+  return createReactiveObject(
+    target,
+    false,
+    shallowReactiveHandlers,
+    shallowCollectionHandlers,
+    shallowReactiveMap
+  )
+}
+```
+
 #### readonly
+
+- 接受一个对象 (响应式或纯对象) 或 [ref](https://v3.cn.vuejs.org/api/refs-api.html#ref) 并返回原始对象的只读代理。
+- 只读代理是深层的：任何被访问的嵌套 property 也是只读的。
+
+```js
+function readonly(target) {
+  return createReactiveObject(
+    target,
+    true,
+    readonlyHandlers,
+    readonlyCollectionHandlers,
+    readonlyMap
+  )
+}
+```
+
+
 
 #### shallowReadonly
 
+- 创建一个 proxy，使其自身的 property 为只读
+- 但不执行嵌套对象的深度只读转换
+
+```js
+export function shallowReadonly(target) {
+  return createReactiveObject(
+    target,
+    true,
+    shallowReadonlyHandlers,
+    shallowReadonlyCollectionHandlers,
+    shallowReadonlyMap
+  )
+}
+```
+
 #### isReactive
+
+- 检查对象是否是由 [`reactive`](https://v3.cn.vuejs.org/api/basic-reactivity.html#reactive) 创建的响应式代理
+- 可以在observed阶段给target设置一个`[ReactiveFlags.RAW]/[ReactiveFlags.IS_REACTIVE]`属性
+
+```js
+function isReactive(value) {
+  if (isReadonly(value)) {
+    return isReactive((value)[ReactiveFlags.RAW])
+  }
+  return !!(value && (value)[ReactiveFlags.IS_REACTIVE])
+}
+```
 
 #### isReadonly
 
+- 检查对象是否是由 [`readonly`](https://v3.cn.vuejs.org/api/basic-reactivity.html#readonly) 创建的只读代理。
+- 原理同上
+
+```
+function isReadonly(value) {
+  return !!(value && (value)[ReactiveFlags.IS_READONLY])
+}
+```
+
 #### isProxy
+
+- 检查对象是否是由 [`reactive`](https://v3.cn.vuejs.org/api/basic-reactivity.html#reactive) 或 [`readonly`](https://v3.cn.vuejs.org/api/basic-reactivity.html#readonly) 创建的 proxy
+- 内部其实是调用isReactive | isReadonly 方法进行的判断
+
+```js
+function isProxy(value: unknown): boolean {
+  return isReactive(value) || isReadonly(value)
+}
+```
 
 #### toRaw
 
+- 前面已经说过，不再赘述
+
 #### markRaw
+
+- 标记一个对象，使其永远不会转换为 proxy。[返回对象本身](https://v3.cn.vuejs.org/api/basic-reactivity.html#markraw)。
+- 原理：给value定义一个ReactiveFlags.SKIP属性并设置值为true
+- 在reactive时对该属性进行判断
+
+```js
+function markRaw (value) {
+  def(value, ReactiveFlags.SKIP, true)
+  return value
+}
+```
 
 ### ref
 
