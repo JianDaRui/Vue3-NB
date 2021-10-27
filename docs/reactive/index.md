@@ -2872,6 +2872,8 @@ function triggerRef(ref) {
 }
 ```
 
+![Ref](D:\vue3深入浅出\docs\.vuepress\public\img\Ref.png)
+
 ### `computed`
 
 说道computed，想让我们回想下怎么使用：
@@ -2932,7 +2934,7 @@ class ComputedRefImpl {
       scheduler: () => {
         
         if (!this._dirty) {
-            
+          // 重置_dirty
           this._dirty = true
           
           // 响应派发
@@ -2948,9 +2950,10 @@ class ComputedRefImpl {
     
     const self = toRaw(this)
     if (self._dirty) {
+        
       // 执行effect即执行getter，获取新值
-      // 重置——dirty
       self._value = this.effect()
+      // _dirty 置为false
       self._dirty = false
     }
     // track 依赖收集
