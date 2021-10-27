@@ -2288,7 +2288,7 @@ iteratorMethods.forEach(method => {
 })
 ```
 
-> 对迭代器或者可迭代协议不熟悉的同学可以点击下面链接
+> 对迭代器或者可迭代协议感兴趣的同学可以点击下面链接
 >
 > 迭代器协议：https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Iteration_protocols
 >
@@ -2435,7 +2435,7 @@ function createInstrumentationGetter(isReadonly, shallow) {
   }
 }
 
-// 组合Handler
+// 配置Handler
 const mutableCollectionHandlers = {
   get: createInstrumentationGetter(false, false)
 }
@@ -2680,31 +2680,543 @@ function markRaw (value) {
 
 ### `ref`
 
+学习Vue3时，有一个疑问：已经有一个reactive函数了，为什么还有搞一个ref呢？后来看了源码才明白部分原由。
+
+在reactive中，我们并不能转换基础类型，只能对对象类型进行代理。而要如何实现对基础类型的代理呢？
+
+创建一个Ref Class。通过类实例来实现get & set 的拦截操作。
+
+> ref可以用于原始类型也能用于对象类型的转换，ref弥补reactive基础类型的转换应该是部分原因，尤大应该有其他跟高层次的考虑和设计。只是我暂时看不到呢~
+
+Ref Class的实现原理并不复杂，我们可以直接看下其源码：
+
+```js
+// 通过判断value进行转换
+const convert = (val) => isObject(val) ? reactive(val) : val
+
+// Ref 类
+class RefImpl {
+  private _value:
+
+  public readonly __v_isRef = true
+
+  constructor(private _rawValue, public readonly _shallow) {
+      
+    // shallow为true，不对value进行转换
+    this._value = _shallow ? _rawValue : convert(_rawValue)
+  }
+
+  // get的时候进行track
+  get value() {
+    track(toRaw(this), TrackOpTypes.GET, 'value')
+    return this._value
+  }
+
+  // set的时候进行trigger
+  set value(newVal) {
+    if (hasChanged(toRaw(newVal), this._rawValue)) {
+        
+      // 新旧值不同时，进行trigger
+      this._rawValue = newVal
+      this._value = this._shallow ? newVal : convert(newVal)
+        
+      // 触发响应
+      trigger(toRaw(this), TriggerOpTypes.SET, 'value', newVal)
+    }
+  }
+}
+
+// 工厂函数 用于创建ref实例
+function createRef(rawValue, shallow = false) {
+  if (isRef(rawValue)) {
+    return rawValue
+  }
+  return new RefImpl(rawValue, shallow)
+}
+```
+
+有了createRef函数，接下来就是创建API了
+
 #### `ref`
+
+- 接受一个value并返回一个响应式且可变的 ref 对象。
+- ref 对象具有指向内部值的单个 property `.value`
+
+```js
+function ref(value) {
+  return createRef(value)
+}
+```
+
+
 
 #### `shallowRef`
 
+- 创建一个跟踪自身 `.value` 变化的 ref，但不会使其值也变成响应式的。
+
+```js
+function shallowRef(value) {
+  return createRef(value, true)
+}
+```
+
 #### `isRef`
+
+- 判断value是否为ref对象
+- 注意上面我们在RefImpl Class中设置的一个只读属性 `__v_isRef`
+
+```js
+function isRef(r) {
+  return Boolean(r && r.__v_isRef === true)
+}
+```
 
 #### `toRef`
 
+- 为源响应式对象上的某个 property 新创建一个 [`ref`](https://v3.cn.vuejs.org/api/refs-api.html#ref)
+- 当需要将 prop 的 ref 传递给复合函数时，`toRef` 很有用
+
+```js
+class ObjectRefImpl {
+  public readonly __v_isRef = true
+
+  constructor(private readonly _object, private readonly _key) {}
+
+  get value() {
+    return this._object[this._key]
+  }
+
+  set value(newVal) {
+    this._object[this._key] = newVal
+  }
+}
+
+function toRef(object,key) {
+  return isRef(object[key])
+    ? object[key]
+    : (new ObjectRefImpl(object, key))
+}
+```
+
 #### `toRefs`
+
+- 将响应式对象转换为普通对象，其中结果对象的每个 property 都是指向原始对象相应 property 的 [`ref`](https://v3.cn.vuejs.org/api/refs-api.html#ref)。
+- 当从组合式函数返回响应式对象时，对响应式对象进行解构非常有用
+- 原理：遍历响应式对象，调用toRef转换每一对key:value
+
+```js
+function toRefs {
+  if (__DEV__ && !isProxy(object)) {
+    console.warn(`toRefs() expects a reactive object but received a plain one.`)
+  }
+  const ret: any = isArray(object) ? new Array(object.length) : {}
+  for (const key in object) {
+    ret[key] = toRef(object, key)
+  }
+  return ret
+}
+```
 
 #### `customRef`
 
+- 创建一个自定义的 ref，并对其依赖项跟踪和更新触发进行显式控制。
+- 需要一个工厂函数作为参数，该函数接收 `track` 和 `trigger` 函数作为参数
+- 并且应该返回一个带有 `get` 和 `set` 的对象
+
+```js
+class CustomRefImpl {
+  private readonly _get: ['get']
+  private readonly _set: ['set']
+
+  public readonly __v_isRef = true
+
+  constructor(factory) {
+    // 给工厂函数传 track函数 & trigger函数
+    // 获取返回的 get set函数
+    const { get, set } = factory(
+      () => track(this, TrackOpTypes.GET, 'value'),
+      () => trigger(this, TriggerOpTypes.SET, 'value')
+    )
+    this._get = get
+    this._set = set
+  }
+
+  get value() {
+    return this._get()
+  }
+
+  set value(newVal) {
+    this._set(newVal)
+  }
+}
+```
+
+> 题外话：当我看了这段代码的设计，感觉真是太巧妙了
+
+**API实现**：
+
+```js
+function customRef(factory){
+  return new CustomRefImpl(factory)
+}
+```
+
 #### `triggerRef`
+
+- 手动执行与 [`shallowRef`](https://v3.cn.vuejs.org/api/refs-api.html#shallowref) 关联的任何作用 (effect)
+- 内部其实就是进行手动trigger
+
+```js
+function triggerRef(ref) {
+  trigger(toRaw(ref), TriggerOpTypes.SET, 'value', __DEV__ ? ref.value : void 0)
+}
+```
 
 ### `computed`
 
-#### `computed`
+说道computed，想让我们回想下怎么使用：
 
-#### `ComputedRef`
+- 可以给computed传一个 getter 函数，
+- 它会根据 getter 的返回值，返回一个不可变的响应式 [ref](https://v3.cn.vuejs.org/api/refs-api.html#ref) 对象。
+
+```js
+const count = ref(1)
+const plusOne = computed(() => count.value + 1)
+
+console.log(plusOne.value) // 2
+
+plusOne.value++ // 错误
+```
+
+- 或者，接受一个具有 `get` 和 `set` 函数的对象，用来创建可写的 ref 对象。
+
+```js
+const count = ref(1)
+const plusOne = computed({
+  get: () => count.value + 1,
+  set: val => {
+    count.value = val - 1
+  }
+})
+
+plusOne.value = 1
+console.log(count.value) // 0
+```
+
+
+
+```js
+class ComputedRefImpl {
+  private _value! 
+  private _dirty = true
+
+  public readonly effect
+  
+  // 声明为只读的响应式ref对象
+  public readonly __v_isRef = true;
+  public readonly [ReactiveFlags.IS_READONLY]
+
+  constructor(
+    getter,
+    readonly _setter,
+    isReadonly
+  ) {
+    // 
+    this.effect = effect(getter, {
+      // lazy为true，不会立即执行 getter函数
+      lazy: true,
+      
+      // 在trigger函数中 最后对effects进行遍历
+      // 执行run函数，如果effect.option.scheduler函数存在
+      // 就会执行 scheduler 函数
+      scheduler: () => {
+        
+        if (!this._dirty) {
+            
+          this._dirty = true
+          
+          // 响应派发
+          trigger(toRaw(this), TriggerOpTypes.SET, 'value')
+        }
+      }
+    })
+
+    this[ReactiveFlags.IS_READONLY] = isReadonly
+  }
+
+  get value() {
+    
+    const self = toRaw(this)
+    if (self._dirty) {
+      // 执行effect即执行getter，获取新值
+      // 重置——dirty
+      self._value = this.effect()
+      self._dirty = false
+    }
+    // track 依赖收集
+    track(self, TrackOpTypes.GET, 'value')
+    return self._value
+  }
+
+  set value(newValue) {
+    // 将新值传给用户配置的setter函数
+    this._setter(newValue)
+  }
+}
+
+
+// 创建computed API
+function computed(getterOrOptions) {
+  let getter
+  let setter
+
+  if (isFunction(getterOrOptions)) {
+    getter = getterOrOptions
+    setter = __DEV__
+      ? () => {
+          console.warn('Write operation failed: computed value is readonly')
+        }
+      : NOOP
+  } else {
+    getter = getterOrOptions.get
+    setter = getterOrOptions.set
+  }
+
+  return new ComputedRefImpl(
+    getter,
+    setter,
+    isFunction(getterOrOptions) || !getterOrOptions.set
+  )
+}
+
+```
 
 ### `watch`
 
+```js
+function doWatch(
+  source,
+  cb,
+  { immediate, deep, flush, onTrack, onTrigger },
+  instance = currentInstance
+) {
+  if (__DEV__ && !cb) {
+    if (immediate !== undefined) {
+      warn(
+        `watch() "immediate" option is only respected when using the ` +
+          `watch(source, callback, options?) signature.`
+      )
+    }
+    if (deep !== undefined) {
+      warn(
+        `watch() "deep" option is only respected when using the ` +
+          `watch(source, callback, options?) signature.`
+      )
+    }
+  }
+
+  const warnInvalidSource = (s) => {
+    warn(
+      `Invalid watch source: `,
+      s,
+      `A watch source can only be a getter/effect function, a ref, ` +
+        `a reactive object, or an array of these types.`
+    )
+  }
+
+  let getter
+  let forceTrigger = false
+  let isMultiSource = false
+
+  if (isRef(source)) {
+    getter = () => source.value
+    forceTrigger = !!source._shallow
+  } else if (isReactive(source)) {
+    getter = () => source
+    deep = true
+  } else if (isArray(source)) {
+    isMultiSource = true
+    forceTrigger = source.some(isReactive)
+    getter = () =>
+      source.map(s => {
+        if (isRef(s)) {
+          return s.value
+        } else if (isReactive(s)) {
+          return traverse(s)
+        } else if (isFunction(s)) {
+          return callWithErrorHandling(s, instance, ErrorCodes.WATCH_GETTER)
+        } else {
+          __DEV__ && warnInvalidSource(s)
+        }
+      })
+  } else if (isFunction(source)) {
+    if (cb) {
+      // getter with cb
+      getter = () =>
+        callWithErrorHandling(source, instance, ErrorCodes.WATCH_GETTER)
+    } else {
+      // no cb -> simple effect
+      getter = () => {
+        if (instance && instance.isUnmounted) {
+          return
+        }
+        if (cleanup) {
+          cleanup()
+        }
+        return callWithAsyncErrorHandling(
+          source,
+          instance,
+          ErrorCodes.WATCH_CALLBACK,
+          [onInvalidate]
+        )
+      }
+    }
+  } else {
+    getter = NOOP
+    __DEV__ && warnInvalidSource(source)
+  }
+
+  // 2.x array mutation watch compat
+  if (__COMPAT__ && cb && !deep) {
+    const baseGetter = getter
+    getter = () => {
+      const val = baseGetter()
+      if (
+        isArray(val) &&
+        checkCompatEnabled(DeprecationTypes.WATCH_ARRAY, instance)
+      ) {
+        traverse(val)
+      }
+      return val
+    }
+  }
+
+  if (cb && deep) {
+    const baseGetter = getter
+    getter = () => traverse(baseGetter())
+  }
+
+  let cleanup
+  let onInvalidate: InvalidateCbRegistrator = (fn) => {
+    cleanup = runner.options.onStop = () => {
+      callWithErrorHandling(fn, instance, ErrorCodes.WATCH_CLEANUP)
+    }
+  }
+
+  // in SSR there is no need to setup an actual effect, and it should be noop
+  // unless it's eager
+  if (__NODE_JS__ && isInSSRComponentSetup) {
+    // we will also not call the invalidate callback (+ runner is not set up)
+    onInvalidate = NOOP
+    if (!cb) {
+      getter()
+    } else if (immediate) {
+      callWithAsyncErrorHandling(cb, instance, ErrorCodes.WATCH_CALLBACK, [
+        getter(),
+        undefined,
+        onInvalidate
+      ])
+    }
+    return NOOP
+  }
+
+  let oldValue = isMultiSource ? [] : INITIAL_WATCHER_VALUE
+  
+  const job: SchedulerJob = () => {
+    if (!runner.active) {
+      return
+    }
+    if (cb) {
+      // watch(source, cb)
+      const newValue = runner()
+      if (
+        deep ||
+        forceTrigger ||
+        (isMultiSource
+          ? (newValue).some((v, i) =>
+              hasChanged(v, (oldValue)[i])
+            )
+          : hasChanged(newValue, oldValue)) ||
+        (__COMPAT__ &&
+          isArray(newValue) &&
+          isCompatEnabled(DeprecationTypes.WATCH_ARRAY, instance))
+      ) {
+        // cleanup before running cb again
+        if (cleanup) {
+          cleanup()
+        }
+        callWithAsyncErrorHandling(cb, instance, ErrorCodes.WATCH_CALLBACK, [
+          newValue,
+          // pass undefined as the old value when it's changed for the first time
+          oldValue === INITIAL_WATCHER_VALUE ? undefined : oldValue,
+          onInvalidate
+        ])
+        oldValue = newValue
+      }
+    } else {
+      // watchEffect
+      runner()
+    }
+  }
+
+  // important: mark the job as a watcher callback so that scheduler knows
+  // it is allowed to self-trigger (#1727)
+  job.allowRecurse = !!cb
+
+  let scheduler
+  if (flush === 'sync') {
+    scheduler = job  // the scheduler function gets called directly
+  } else if (flush === 'post') {
+    scheduler = () => queuePostRenderEffect(job, instance && instance.suspense)
+  } else {
+    // default: 'pre'
+    scheduler = () => {
+      if (!instance || instance.isMounted) {
+        queuePreFlushCb(job)
+      } else {
+        // with 'pre' option, the first call must happen before
+        // the component is mounted so it is called synchronously.
+        job()
+      }
+    }
+  }
+
+  const runner = effect(getter, {
+    lazy: true,
+    onTrack,
+    onTrigger,
+    scheduler
+  })
+
+  recordInstanceBoundEffect(runner, instance)
+
+  // initial run
+  if (cb) {
+    if (immediate) {
+      job()
+    } else {
+      oldValue = runner()
+    }
+  } else if (flush === 'post') {
+    queuePostRenderEffect(runner, instance && instance.suspense)
+  } else {
+    runner()
+  }
+
+  return () => {
+    stop(runner)
+    if (instance) {
+      remove(instance.effects!, runner)
+    }
+  }
+}
+```
+
+
+
 #### `watch`
 
-#### `watchEffect`
+#### `watchEffect`s
 
 ### `effect`
 
