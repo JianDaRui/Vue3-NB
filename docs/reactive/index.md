@@ -2874,6 +2874,27 @@ function triggerRef(ref) {
 
 ![Ref](D:\vue3深入浅出\docs\.vuepress\public\img\Ref.png)
 
+### 再谈`effect`
+
+前面在讲变化侦测的时候，我们简单说了一下effect函数。但是并没有对effect在整个响应中的执行流程进行解析。这次一定要补上，因为如果不同effect的执行过程，就很难理解computed的原理。
+
+在vue3中会有四种级别的effect：
+
+- 负责渲染更新的`setupRenderEffect`
+- 负责处理watch的watchEffect
+- 负责处理computed的`computedEffect`
+- 用户自己使用effect API时创建的effct
+
+这次我们主要说`setupRenderEffect`、`computedEffect`。
+
+一次vue3组件的正常渲染、响应更新的过程其实是这样的：
+
+
+
+当我们使用reactive(state)，创建响应式的时候，并不会直接触发track & trigger。过程应该是这样的
+
+#### `stop`
+
 ### `computed`
 
 说道computed，想让我们回想下怎么使用：
@@ -2994,238 +3015,7 @@ function computed(getterOrOptions) {
 
 ```
 
-### `watch`
 
-```js
-function doWatch(
-  source,
-  cb,
-  { immediate, deep, flush, onTrack, onTrigger },
-  instance = currentInstance
-) {
-  if (__DEV__ && !cb) {
-    if (immediate !== undefined) {
-      warn(
-        `watch() "immediate" option is only respected when using the ` +
-          `watch(source, callback, options?) signature.`
-      )
-    }
-    if (deep !== undefined) {
-      warn(
-        `watch() "deep" option is only respected when using the ` +
-          `watch(source, callback, options?) signature.`
-      )
-    }
-  }
-
-  const warnInvalidSource = (s) => {
-    warn(
-      `Invalid watch source: `,
-      s,
-      `A watch source can only be a getter/effect function, a ref, ` +
-        `a reactive object, or an array of these types.`
-    )
-  }
-
-  let getter
-  let forceTrigger = false
-  let isMultiSource = false
-
-  if (isRef(source)) {
-    getter = () => source.value
-    forceTrigger = !!source._shallow
-  } else if (isReactive(source)) {
-    getter = () => source
-    deep = true
-  } else if (isArray(source)) {
-    isMultiSource = true
-    forceTrigger = source.some(isReactive)
-    getter = () =>
-      source.map(s => {
-        if (isRef(s)) {
-          return s.value
-        } else if (isReactive(s)) {
-          return traverse(s)
-        } else if (isFunction(s)) {
-          return callWithErrorHandling(s, instance, ErrorCodes.WATCH_GETTER)
-        } else {
-          __DEV__ && warnInvalidSource(s)
-        }
-      })
-  } else if (isFunction(source)) {
-    if (cb) {
-      // getter with cb
-      getter = () =>
-        callWithErrorHandling(source, instance, ErrorCodes.WATCH_GETTER)
-    } else {
-      // no cb -> simple effect
-      getter = () => {
-        if (instance && instance.isUnmounted) {
-          return
-        }
-        if (cleanup) {
-          cleanup()
-        }
-        return callWithAsyncErrorHandling(
-          source,
-          instance,
-          ErrorCodes.WATCH_CALLBACK,
-          [onInvalidate]
-        )
-      }
-    }
-  } else {
-    getter = NOOP
-    __DEV__ && warnInvalidSource(source)
-  }
-
-  // 2.x array mutation watch compat
-  if (__COMPAT__ && cb && !deep) {
-    const baseGetter = getter
-    getter = () => {
-      const val = baseGetter()
-      if (
-        isArray(val) &&
-        checkCompatEnabled(DeprecationTypes.WATCH_ARRAY, instance)
-      ) {
-        traverse(val)
-      }
-      return val
-    }
-  }
-
-  if (cb && deep) {
-    const baseGetter = getter
-    getter = () => traverse(baseGetter())
-  }
-
-  let cleanup
-  let onInvalidate: InvalidateCbRegistrator = (fn) => {
-    cleanup = runner.options.onStop = () => {
-      callWithErrorHandling(fn, instance, ErrorCodes.WATCH_CLEANUP)
-    }
-  }
-
-  // in SSR there is no need to setup an actual effect, and it should be noop
-  // unless it's eager
-  if (__NODE_JS__ && isInSSRComponentSetup) {
-    // we will also not call the invalidate callback (+ runner is not set up)
-    onInvalidate = NOOP
-    if (!cb) {
-      getter()
-    } else if (immediate) {
-      callWithAsyncErrorHandling(cb, instance, ErrorCodes.WATCH_CALLBACK, [
-        getter(),
-        undefined,
-        onInvalidate
-      ])
-    }
-    return NOOP
-  }
-
-  let oldValue = isMultiSource ? [] : INITIAL_WATCHER_VALUE
-  
-  const job: SchedulerJob = () => {
-    if (!runner.active) {
-      return
-    }
-    if (cb) {
-      // watch(source, cb)
-      const newValue = runner()
-      if (
-        deep ||
-        forceTrigger ||
-        (isMultiSource
-          ? (newValue).some((v, i) =>
-              hasChanged(v, (oldValue)[i])
-            )
-          : hasChanged(newValue, oldValue)) ||
-        (__COMPAT__ &&
-          isArray(newValue) &&
-          isCompatEnabled(DeprecationTypes.WATCH_ARRAY, instance))
-      ) {
-        // cleanup before running cb again
-        if (cleanup) {
-          cleanup()
-        }
-        callWithAsyncErrorHandling(cb, instance, ErrorCodes.WATCH_CALLBACK, [
-          newValue,
-          // pass undefined as the old value when it's changed for the first time
-          oldValue === INITIAL_WATCHER_VALUE ? undefined : oldValue,
-          onInvalidate
-        ])
-        oldValue = newValue
-      }
-    } else {
-      // watchEffect
-      runner()
-    }
-  }
-
-  // important: mark the job as a watcher callback so that scheduler knows
-  // it is allowed to self-trigger (#1727)
-  job.allowRecurse = !!cb
-
-  let scheduler
-  if (flush === 'sync') {
-    scheduler = job  // the scheduler function gets called directly
-  } else if (flush === 'post') {
-    scheduler = () => queuePostRenderEffect(job, instance && instance.suspense)
-  } else {
-    // default: 'pre'
-    scheduler = () => {
-      if (!instance || instance.isMounted) {
-        queuePreFlushCb(job)
-      } else {
-        // with 'pre' option, the first call must happen before
-        // the component is mounted so it is called synchronously.
-        job()
-      }
-    }
-  }
-
-  const runner = effect(getter, {
-    lazy: true,
-    onTrack,
-    onTrigger,
-    scheduler
-  })
-
-  recordInstanceBoundEffect(runner, instance)
-
-  // initial run
-  if (cb) {
-    if (immediate) {
-      job()
-    } else {
-      oldValue = runner()
-    }
-  } else if (flush === 'post') {
-    queuePostRenderEffect(runner, instance && instance.suspense)
-  } else {
-    runner()
-  }
-
-  return () => {
-    stop(runner)
-    if (instance) {
-      remove(instance.effects!, runner)
-    }
-  }
-}
-```
-
-
-
-#### `watch`
-
-#### `watchEffect`s
-
-### `effect`
-
-#### `effect`
-
-#### `stop`
 
 ## 总结
 
