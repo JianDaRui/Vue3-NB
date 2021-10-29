@@ -6,24 +6,24 @@
 
 ## 新旧对比
 
- 这次分享的主要是Vue3的reactivity的源码部分，故只对比Vue2与Vue3的响应式源码部分。
+ 这次分享的主要是`Vue3`的`reactivity`的源码部分，故只对比`Vue2`与`Vue3`的响应式源码部分。
 
 ### 新旧原理对比：`Object.defineProperty`与`Proxy`
 
 **`Object.defineProperty`**：
 
-有了解过Vue2源码的同学都知道。在`Vue2`中，其内部是通过`Object.defineProperty`来实现变化侦测的。该方法可以直接在一个对象上定义一个新属性或者修改一个现有属性。接受三个参数，分别是`targetObject`、`key`及一个针对key的`descriptorObject`，返回值是传递给函数的对象。
+有了解过`Vue2`源码的同学都知道。在`Vue2`中，其内部是通过`Object.defineProperty`来实现变化侦测的。该方法可以直接在一个对象上定义一个新属性或者修改一个现有属性。接受三个参数，分别是`targetObject`、`key`及一个针对key的`descriptorObject`，返回值是传递给函数的对象。
 
-descriptorObject可以选择的键值：
+`descriptorObject`可以选择的键值：
 
-- configurable：设置当前属性的可配置性，默认false。
-- enumerable：设置当前属性的可枚举性，默认false。
-- value：设置当前属性的值，默认undefined。
-- writable：设置当前属性是否可更改，默认false。
+- `configurable`：设置当前属性的可配置性，默认false。
+- `enumerable`：设置当前属性的可枚举性，默认false。
+- `value`：设置当前属性的值，默认undefined。
+- `writable`：设置当前属性是否可更改，默认false。
 - **get**：当前属性的getter函数，当访问该属性时，会触发该函数。
 - **set**：当前属性的setter函数，当设置当前属性值时，会触发该函数。
 
-这里附上Vue2中defineReactive函数的简略源码，**重点关注**： **get**函数和**set**函数。
+这里附上`Vue2`中`defineReactive`函数的简略源码，**重点关注**： **get**函数和**set**函数。
 
 ```javascript
 function defineReactive (obj, key, val, customSetter, shallow) {
@@ -130,19 +130,19 @@ function defineReactive(data, key, val) {
 }
 ```
 
-针对这三个问题，`Vue2`中分别采取了不同的措施:
+针对这三个问题，``Vue2``中分别采取了不同的措施:
 
 - 针对数组变化，创建数组拦截器。
-- 针对新增和删除对象属性问题，创建`$set`、`$delete` API。
+- 针对新增和删除对象属性问题，创建`$set`、`$delete` `API`。
 - 针对`value`为对象的情况，采用**递归**的方式，深度遍历，进行依赖收集。
 
 **`Proxy`**：
 
-随着浏览器对ES6支持度的提升，在Vue3中使用了Proxy。
+随着浏览器对`ES6`支持度的提升，在`Vue3`中使用了`Proxy`。
 
-**proxy 可以直接对整个`targetObject`进行拦截**，它接受两个参数，分别是target、handler，并返回一个代理对象。handler可配置的方法有***13***种，涉及属性查找、赋值、枚举、函数调用、原型、属性描述相关方法。
+**proxy 可以直接对整个`targetObject`进行拦截**，它接受两个参数，分别是`target`、`handler`，并返回一个代理对象。handler可配置的方法有***13***种，涉及属性查找、赋值、枚举、函数调用、原型、属性描述相关方法。
 
-下面我们可以通过代码示例了解下proxy，及Vue3中handler使用到的几种方法：
+下面我们可以通过代码示例了解下`proxy`，及`Vue3`中`handler`使用到的几种方法：
 
 ```js
 let obj = { name: "罗翔"}
@@ -160,11 +160,11 @@ proxy.name
 proxy.name = "张三";
 ```
 
-> 这里说到Proxy，就不得不提一下它的好基友：Reflect。Reflect上的方法基本与Object相同，[但又存在细微的差别](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Reflect/Comparing_Reflect_and_Object_methods)。
+> 这里说到`Proxy`，就不得不提一下它的好基友：`Reflect`。`Reflect`上的方法基本与`Object`相同，[但又存在细微的差别](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Reflect/Comparing_Reflect_and_Object_methods)。
 >
-> Reflect上的方法与Proxy方法命名相同。可以对target进行映射。
+> `Reflect`上的方法与Proxy方法命名相同。可以对`target`进行映射。
 >
-> 当需要调用Object上的方法时，我们可以直接调用Reflect。Reflect相当于直接对Javascript的操作做了一层拦截。
+> 当需要调用Object上的方法时，我们可以直接调用Reflect。`Reflect`相当于直接对`Javascript`的操作做了一层拦截。
 
 - `get()`
   - 用于拦截对象属性的读取
@@ -185,8 +185,8 @@ console.log(p.a); // "called: a"
 
 - `set()`
   - 用于设置对象属性的值
-  - 接受四个参数target、key、newValue（新设置的值）、receiver
-  - 返回true，严格模式返回false会报TypeError异常
+  - 接受四个参数`target`、`key`、`newValue`（新设置的值）、`receiver`
+  - 返回true，严格模式返回`false`会报`TypeError`异常
 
 ```javascript
 let p = new Proxy({ name: "罗翔", profession: "司机" }, {
@@ -201,9 +201,9 @@ console.log(p.age) // 18
 ```
 
 - `deleteProperty()`
-  - 用于拦截对对象属性的delete操作（弥补了Object.definedProperty属性对delete操作无感的问题）。
-  - 接受参数：target、key
-  - 返回布尔值： true成功，false失败
+  - 用于拦截对对象属性的`delete`操作（弥补了`Object.definedProperty`属性对`delete`操作无感的问题）。
+  - 接受参数：`targe`t、`key`
+  - 返回布尔值： `true`成功，`false`失败
 
 ```javascript
 var p = new Proxy({}, {
@@ -218,8 +218,8 @@ delete p.a; // "called: a"
 
 - `has()`
   - 用于拦截in操作
-  - 接受参数target、key
-  - 返回布尔值，true存在，false不存在
+  - 接受参数`target`、`key`
+  - 返回布尔值，`true`存在，`false`不存在
   - 拦截只对`in`运算符生效，对`for...in`循环不生效
 
 ```javascript
@@ -265,7 +265,7 @@ for (let b in oproxy2) {
     - [`Object.keys()`](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Object/keys)
     - [`Reflect.ownKeys()`](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Reflect/ownKeys)
     - `for...in`循环
-  - 参数target
+  - 参数`target`
   - 返回结果必须为一个数组
 
 ```javascript
@@ -281,18 +281,18 @@ console.log(Object.getOwnPropertyNames(p)); // "called"
 
 #### 总结（待完善）
 
-Proxy相较于Object.defineProperty更加强大。通过上面的示例，可以看出Proxy可以弥补Object.defineProperty在依赖收集，侦测变化方面的缺陷，比如：
+`Proxy`相较于`Object.defineProperty`更加强大。通过上面的示例，可以看出Proxy可以弥补`Object.defineProperty`在依赖收集，侦测变化方面的缺陷，比如：
 
-- 对Object属性的新增删除操作
-- 通过Array下标进行修改或新增元素操作
+- 对`Object`属性的新增删除操作
+- 通过`Array`下标进行修改或新增元素操作
 
-但是Proxy也有自己的缺陷，这里我们先留个空白，后面会补充。我们接着聊。
+但是`Proxy`也有自己的缺陷，这里我们先留个空白，后面会补充。我们接着聊。
 
 ### 新旧模式对比：观察者模式与代理模式
 
 #### 观察者模式
 
-Vue2内部通过观察者模式处理数据与依赖的关系，观察者模式的特点：
+`Vue2`内部通过观察者模式处理数据与依赖的关系，观察者模式的特点：
 
 - **一对多。**多个对象之间存在一对多的依赖关系，当一个对象的状态发生改变时，所有依赖于他的对象都得到通知并被自动更新
 - 降低目标数据与依赖之间的耦合关系
@@ -300,13 +300,13 @@ Vue2内部通过观察者模式处理数据与依赖的关系，观察者模式�
 
 **简单实现观察者模式**
 
-- Subject类：
-  - observers属性用于维护所有的观察者
-  - add方法用于添加观察者
-  - notify方法用于通知所有的观察者
-  - remove方法用于移除观察者
-- Observer类：
-  - update方法用于接受状态的变化
+- Subject`类：
+  - observers`属性用于维护所有的观察者
+  - `add`方法用于添加观察者
+  - `notify`方法用于通知所有的观察者
+  - `remove`方法用于移除观察者
+- `Observer`类：
+  - `update`方法用于接受状态的变化
 
 ```js
 // Subject 对象
@@ -355,22 +355,22 @@ sub.add(smallRio);
 sub.notify(); 
 ```
 
-**Vue2中的观察者模式**
+**`Vue2`中的观察者模式**
 
 ![借用大佬的图，侵删](D:\vue3深入浅出\docs\.vuepress\public\img\define_reactive.png)
 
 
 
-- Vue2中 数据就是我们要观察的对象，Watcher就是所谓的依赖，而Dep只是负责对Watcher的收集和派发。
+- `Vue2`中 数据就是我们要观察的对象，Watcher就是所谓的依赖，而`Dep`只是负责对`Watcher`的收集和派发。
 
-- 另Vue2中watcher也可以是目标数据。它与Dep是一种多对多的关系，而不是一对多。
+- 另`Vue2`中watcher也可以是目标数据。它与`Dep`是一种多对多的关系，而不是一对多。
 
-下面我们再次回顾下Vue2中是如何设计这几个类的：
+下面我们再次回顾下`Vue2`中是如何设计这几个类的：
 
 - **Observer类**：
-  - 用于创建Observer实例
-  - walk方法遍历被观察的对象，将value中的每一项转为响应式
-  - observeArray方法用于遍历被观察的数组，将数组中的每一项转为响应式
+  - 用于创建`Observer`实例
+  - `walk`方法遍历被观察的对象，将`value`中的每一项转为响应式
+  - `observeArray`方法用于遍历被观察的数组，将数组中的每一项转为响应式
 
 ```js
 class Observer {
@@ -407,7 +407,7 @@ class Observer {
 ```
 
 - **Observe方法**
-  - observe方法是用于创建Observer实例的工场方法
+  - `observe`方法是用于创建`Observer`实例的工场方法
 
 ```js
 function observe (value, asRootData){
@@ -429,8 +429,8 @@ function observe (value, asRootData){
 ```
 
 - **defineReactive方法**
-  - 对val进行递归观察
-  - 通过Object.defineProperty，对obj[key]进行Getter、Setter拦截
+  - 对`val`进行递归观察
+  - 通过`Object.defineProperty`，对`obj[key]`进行`Getter`、`Setter`拦截
   - 进行依赖收集、状态派发
 
 ```js
@@ -488,8 +488,8 @@ function defineReactive (obj, key, val, customSetter, shallow) {
 }
 ```
 
-- **Dep类**
-  - 相当于Observer与Watcher之间的中介
+- **`Dep`类**
+  - 相当于`Observer`与`Watcher`之间的中介
   - 用于维护数据与依赖之间的关系
 
 ```js
@@ -530,9 +530,9 @@ Dep.target = null
 
 ```
 
-- **Watcher类**
-  - 真正的依赖，执行callback函数，进行响应
-  - 维护dep与watcher多对多的关系
+- **`Watcher`类**
+  - 真正的依赖，执行`callback`函数，进行响应
+  - 维护`dep`与`watcher`多对多的关系
   - 返回新值
 
 ```js
@@ -670,7 +670,7 @@ class Watcher {
 }
 ```
 
-上面几个类代码中，省略了一些不必要的代码，以便减轻阅读负担。但已经能够展示出Vue2的观察者模式中几个类的基本结构 & 关系。
+上面几个类代码中，省略了一些不必要的代码，以便减轻阅读负担。但已经能够展示出`Vue2`的观察者模式中几个类的基本结构 & 关系。
 
 
 
@@ -689,25 +689,25 @@ class Watcher {
 - 属于结构型设计模式
 - 例：使用虚拟代理加载图片、正/反向代理、静/动态代理、属性校验。
 
-Vue3响应式是基于Proxy的代理模式。通过**配置handler**我们就可以对原始对象的访问**进行控制 & 增强**。
+`Vue3`响应式是基于`Proxy`的代理模式。通过**配置`handler`**我们就可以对原始对象的访问**进行控制 & 增强**。
 
 ![Vue3代理模式](D:\vue3深入浅出\docs\.vuepress\public\img\proxy_module.png)
 
-**增强的hanlder**
+**增强的`hanlder`**
 
-- getter时进行Track
-  - 确定target与effect的关系
-  - 确定activeEffect与Dep的关系
-  - 返回value
-- setter时进行Trigger
-  - 获取对应的effects，遍历执行effect
-  - 更新activeEffect
-  - 更新value
+- `getter`时进行`Track`
+  - 确定`target`与`effect`的关系
+  - 确定`activeEffect`与`Dep`的关系
+  - 返回`value`
+- `setter`时进行`Trigger`
+  - 获取对应的`effects`，遍历执行`effect`
+  - 更新`activeEffect`
+  - 更新`value`
 
 通过分析，我们不难写出有以下逻辑的代码：
 
-- 通过对target进行判断，是否需要进行代理转换
-- 通过new Proxy对target进行代理
+- 通过对`target`进行判断，是否需要进行代理转换
+- 通过`new Proxy`对`target`进行代理
 - 将代理实例返回
 
 ```js
@@ -766,10 +766,10 @@ function createReactiveObject(target, handlers, proxyMap) {
 
 ```
 
-通过上面的图，我们可以看出，Vue3中的依赖收集 & 响应派发都是在handler中做的，但是有几个问题需要我们确定下：
+通过上面的图，我们可以看出，`Vue3`中的依赖收集 & 响应派发都是在`handler`中做的，但是有几个问题需要我们确定下：
 
-- handler针对其他操作类型是如何配置的？比如delete、forEach。
-- 针对不同的数据类型，handler的配置方式一样吗？有什么需要注意的？
+- `handler`针对其他操作类型是如何配置的？比如`delete、forEach`。
+- 针对不同的数据类型，`handler`的配置方式一样吗？有什么需要注意的？
 
 针对上面的两个问题，我们先留着。下面的内容我们就会说到，咱们接着聊。
 
@@ -779,13 +779,13 @@ function createReactiveObject(target, handlers, proxyMap) {
 
 #### 新的依赖
 
-在Vue2中，依赖就是watcher，在Vue3的源码中，我并没有发现Watcher类，而是出现一个新的函数effect，可以称为副作用函数。通过对比watcher与effect及effect与数据的关系。可以确定的称effect相当于Vue2中的watcher，但比Watcher类更简洁。
+在`Vue2`中，依赖就是watcher，在`Vue3`的源码中，我并没有发现Watcher类，而是出现一个新的函数effect，可以称为副作用函数。通过对比`watcher`与`effect`及`effect`与数据的关系。可以确定的称`effect`相当于`Vue2`中的`watcher`，但比`Watcher`类更简洁。
 
 这里贴上effect代码的简略实现，并分析下它的思路：
 
-- effect接受一个fn作为回调函数通过createReactiveEffect函数进行缓存
-- 通过options对effect进行配置
-- 执行effect其实就是创建一个缓存了fn的effect函数
+- `effect`接受一个`fn`作为回调函数通过`createReactiveEffect`函数进行缓存
+- 通过`options`对`effect`进行配置
+- 执行`effect`其实就是创建一个缓存了`fn`的`effect`函数
 
 ```js
 export function effect(fn, options) {
@@ -814,7 +814,7 @@ function createReactiveEffect(fn, options) {
 
 #### 收集在哪里？
 
-在Vue2中，为了维护数据与watcher的关系，专门创建了Dep类。而在Vue3中Dep变为了一个简单的Set实例。在Track的时候，当前的activeEffect就存储在dep中。在Trigger的时候，通过key获取对应的dep集合，再去遍历执行即可。
+在`Vue2`中，为了维护数据与watcher的关系，专门创建了`Dep`类。而在`Vue3`中`Dep`变为了一个简单的Set实例。在`Track`的时候，当前的`activeEffect`就存储在`dep`中。在`Trigger`的时候，通过key获取对应的`dep`集合，再去遍历执行即可。
 
 这里贴上track的简略代码：
 
@@ -850,9 +850,9 @@ export function track(target, type, key) {
 
 #### 数据与依赖之间的关系
 
-在Vue2中，是通过Observe、Dep、Watcher来维持value与watcher之间的关系。
+在`Vue2`中，是通过`Observe、Dep、Watcher`来维持`value`与`watcher`之间的关系。
 
-但是Vue3中没有了上面的几个类。那它是如何维持value与effect之间的关系的呢？
+但是`Vue3`中没有了上面的几个类。那它是如何维持`value与effect`之间的关系的呢？
 
 我们看一段代码：
 
@@ -876,20 +876,20 @@ obj.age = 27
 obj.otherInfo.temp1.push("羽毛球")
 ```
 
-当obj的属性发生变化的时候，我们需要去执行所有与之相关的effect，触发响应。Vue中，state与依赖的关系，可以具体到最基本的 key:value，
+当obj的属性发生变化的时候，我们需要去执行所有与之相关的effect，触发响应。`Vue`中，`state`与依赖的关系，可以具体到最基本的` key:value`，其结构与`Vue2`中`state`与`watcher`的结构相似，只不过在存储state与依赖的方式有所变化：
 
 ![数据与依赖之间的关系](D:\vue3深入浅出\docs\.vuepress\public\img\effect_dep.png)
 
-- targetMap：使用WeakMap实例，用于维护targetObject与KeyToDepMap的关系
-- KeyToDepMap：使用Map实例，用于维护key与Dep的关系
-- Dep：使用Set实例，用于存储所有与key相关的effect
-- effect.deps：使用Array实例，用于存储所有与当前effect的dep实例
+- `targetMap`：使用`WeakMap`实例，用于维护`targetObject与KeyToDepMap`的关系
+- `KeyToDepMap`：使用`Map`实例，用于维护key与`Dep`的关系
+- `Dep`：使用`Set`实例，用于存储所有与`key`相关的`effect`
+- `effect.deps`：使用`Array`实例，用于存储所有与当前`effect`的`dep`实例
 
 
 
 ### Trigger：响应派发
 
-当我们对经过响应转换的数据进行修改时，会触发Setter函数，这时需要做依赖的派发工作，比如DOM更新、watch/computed的执行。
+当我们对经过响应转换的数据进行修改时，会触发`Setter`函数，这时需要做依赖的派发工作，比如`DOM`更新、`watch/computed`的执行。
 
 #### 触发依赖
 
@@ -901,13 +901,13 @@ obj.otherInfo.temp1.push("羽毛球")
 </template>
 ```
 
-模板中name是通过Proxy代理产生的，当proxy.name赋新值时，会触发Setter，这时需要动态的去更新DOM，故在Setter中可以做一些依赖的触发操作。我们可以通过创建一个trigger函数，在setter函数中调用。
+模板中`name`是通过`Proxy`代理产生的，当`proxy.name`赋新值时，会触发`Setter`，这时需要动态的去更新`DOM`，故在`Setter`中可以做一些依赖的触发操作。我们可以通过创建一个`trigger`函数，在`setter`函数中调用。
 
 通过分析，**tigger函数的主要作用**：
 
-- 根据target、key获取要执行的所有effect
-- 根据type操作，进行一些情况判断，添加需要遍历执行的effect
-- 遍历执行effets，触发响应
+- 根据`target、key`获取要执行的所有`effect`
+- 根据`type`操作，进行一些情况判断，添加需要遍历执行的`effect`
+- 遍历执行`effets`，触发响应
 
 ```javascript
 function trigger(target , type , key , newValue , oldValue , oldTarget) {
@@ -979,11 +979,11 @@ proxyTarget.name  // "track"
 proxyTarget.name = "Jiandarui" // "trigger"
 ```
 
-通过上面的代码示例，我们可以知道，Vue3内部，会在Getter函数中进行track，在Setter函数中进行trigger。上面我们并没有研究这两个关键函数的内部实现，下一小节我们一起研究下现在的响应式是如何处理数据与依赖的？track与trigger的内部实现的细节有哪些？
+通过上面的代码示例，我们可以知道，`Vue3`内部，会在`Getter`函数中进行`track`，在`Setter`函数中进行`trigger`。上面我们并没有研究这两个关键函数的内部实现，下一小节我们一起研究下现在的响应式是如何处理数据与依赖的？`track与trigger`的内部实现的细节有哪些？
 
 #### 完善handler & track & trigger
 
-通过对Proxy，handler、track、trigger、effect、依赖与数据的关系这几项分析。接下来我们就可以进行一个简单的组合，写出一个简版的响应式代码
+通过对`Proxy，handler、track、trigger、effect、依赖与数据的关系`这几项分析。接下来我们就可以进行一个简单的组合，写出一个简版的响应式代码
 
 ```js
 // 1.负责target与依赖的映射
@@ -1116,14 +1116,14 @@ const effectFn = effect(() => {
 }，{lazy: false})
 ```
 
-- 当初次渲染的时候，会进行读取操作，出发getter函数，这时就会通过track完成依赖的收集工作
-- 当数据发生变化的时候，会触发setter函数，这时会通过trigger函数进行响应
+- 当初次渲染的时候，会进行读取操作，出发`getter`函数，这时就会通过`track`完成依赖的收集工作
+- 当数据发生变化的时候，会触发`setter`函数，这时会通过`trigger`函数进行响应
 
-### Object&Array的变化侦测
+### `Object&Array`的变化侦测
 
-#### Object的深度代理
+#### `Object`的深度代理
 
-在vue2中，defineReactive函数会对data进行递归转换。那Vue3中是否存在这个问题呢？让我们先看一段代码：
+在`Vue2`中，`defineReactive`函数会对`data`进行递归转换。那`Vue3`中是否存在这个问题呢？让我们先看一段代码：
 
 ```js
 let obj = {
@@ -1158,9 +1158,9 @@ proxyObj.hobby.one = "basketball"
 // basketball
 ```
 
-上面的代码中，我们明明通过 proxyObj.hobby.one = "basketball"，赋予新值，但handler只拦截到了hobby属性的getter操作。
+上面的代码中，我们明明通过 `proxyObj.hobby.one = "basketball"`，赋予新值，但`handler`只拦截到了hobby属性的`getter`操作。
 
-如果obj中key对应的value为Object类型，则**Proxy只能进行单层的拦截**。这并不是我们期望的。
+如果`obj`中`key`对应的`value`为`Object`类型，则**Proxy只能进行单层的拦截**。这并不是我们期望的。
 
 如果我们遇到如下场景：
 
@@ -1168,16 +1168,16 @@ proxyObj.hobby.one = "basketball"
 <div>{{proxyObj.hobby.one}}</div>
 ```
 
-当 proxyObj.hobby.one 发生变化以后，我们期望DOM进行更新。由于proxyObj只进行了单层的代理，hobby并没有经过Proxy转为响应式。则会导致更新失败。
+当 `proxyObj.hobby.one` 发生变化以后，我们期望DOM进行更新。由于`proxyObj`只进行了单层的代理，`hobby`并没有经过`Proxy`转为响应式。则会导致更新失败。
 
-那Vue3是如何解决的呢？
+那`Vue3`是如何解决的呢？
 
-答案是：**进行递归代理**，其思路与Vue2类似，通过判断value的类型，再进行响应转换。
+答案是：**进行递归代理**，其思路与`Vue2`类似，通过判断`value`的类型，再进行响应转换。
 
-这里就需要我们改写getter函数，
+这里就需要我们改写`getter`函数，
 
-- 在get的时候去判断获取的value是否为Object
-- 如果是Object，则再次进行一次Reactive代理
+- 在get的时候去判断获取的`value`是否为`Object`
+- 如果是`Object`，则再次进行一次`Reactive`代理
 
 ```js
 let handler = {
@@ -1198,9 +1198,9 @@ let handler = {
 }
 ```
 
-#### 数组track&trigger的问题
+#### 数组`track&trigger`的问题
 
-Vue3中虽没有了数组拦截器，但是出现了另一个问题，让我们看一段代码：
+`Vue3`中虽没有了数组拦截器，但是出现了另一个问题，让我们看一段代码：
 
 ```js
 let arr = [1,2,3]
@@ -1252,34 +1252,34 @@ proxyArr.splice(2,3,4)
 // set:length
 ```
 
-通过上面几个操作演示，我们可以发现一个简单的操作，可能会触发多次的Getter函数或者Setter函数，这种操作如果是在平常的业务开发过程中可能没有问题，但是在Vue3中可能会导致死递归的出现。
+通过上面几个操作演示，我们可以发现一个简单的操作，可能会触发多次的`Getter`函数或者`Setter`函数，这种操作如果是在平常的业务开发过程中可能没有问题，但是在`Vue3`中可能会导致死递归的出现。
 
-**push&pop&shift&unshift&splice** 这几个方法是可以对数组进行增加删除操作。需要注意的是：
+**`push&pop&shift&unshift&splice`** 这几个方法是可以对数组进行增加删除操作。需要注意的是：
 
 - 这几个方法直接修改的是原数组
 - 并会导致数组**length**属性的变化
 
- **includes&indexOf&lastIndexOf** 这三个方法都是数组用于判断是否存在要查找的值，需要注意的是：
+ **`includes&indexOf&lastIndexOf`** 这三个方法都是数组用于判断是否存在要查找的值，需要注意的是：
 
 - 这三个方法在数组方法实现中都会**对数组进行遍历操作**
 
 > 感兴趣的同学可以看相关issue：[传送门1 (opens new window)](https://github.com/vuejs/vue-next/pull/2138)[传送门2(opens new window)](https://github.com/vuejs/vue-next/issues/2137)
 >
-> 大概意思是当通过watchEffect观察数组时，**发生了死递归**
+> 大概意思是当通过`watchEffect`观察数组时，**发生了死递归**
 
 通过上面打印的规律，可以发现：
 
-- 每次调用方法时，都会先触发get，最后触发set
+- 每次调用方法时，都会先触发`get`，最后触发`set`
 
-#### 创建数组Instrumentations
+#### 创建数组`Instrumentations`
 
-> 评论区，请大佬指教，vue3中的Instrumentations应如何翻译？(✿◡‿◡)
+> 评论区，请大佬指教，`vue3`中的`Instrumentations`应如何翻译？(✿◡‿◡)
 
-那我们能否做一个状态管理器，通过判断是否需要track，以避免到不必要的track和trigger：
+那我们能否做一个状态管理器，通过判断是否需要track，以避免到不必要的`track`和`trigger`：
 
-- 通过hander中的get函数拦截array上的方法
-- 对原型上的方法进行封装，在获取结果前后，分别去做track的暂停和重置，通过trackStack记录shouldTrack
-- 获取到结果后，在进行track
+- 通过`hander`中的`get`函数拦截`array`上的方法
+- 对原型上的方法进行封装，在获取结果前后，分别去做`track`的暂停和重置，通过`trackStack`记录`shouldTrack`
+- 获取到结果后，在进行`track`
 
 让我们一起看下处理后的代码，注意**注释标示的顺序**：
 
@@ -1379,14 +1379,14 @@ proxyArr.splice(2,3,4)
 
 #### 浅层响应转换
 
-前面提到，针对多层Object，需要通过递归进行深度代理。但是某些场景中我们希望响应式的对象只需要进行浅层代理。这就需要:
+前面提到，针对多层`Object`，需要通过递归进行深度代理。但是某些场景中我们希望响应式的对象只需要进行浅层代理。这就需要:
 
-- 改写get函数：
-  - 创建一个createGetter函数用来传递参数
-  - 使用JS的闭包，缓存shallow，返回get函数
-  - get函数内部通过shallow判断是否需要对res再次reactive
-- 改写set函数：
-  - targetObject为浅层响应，当targetObject内部属性发生变化时并不需要设置新值，
+- 改写`get`函数：
+  - 创建一个`createGetter`函数用来传递参数
+  - 使用`JS`的闭包，缓存`shallow`，返回get函数
+  - `get`函数内部通过`shallow`判断是否需要对`res`再次`reactive`
+- 改写`set`函数：
+  - `targetObject`为浅层响应，当`targetObject`内部属性发生变化时并不需要设置新值，
 
 ```js
 const shallowReactiveHandlers = {
@@ -1423,10 +1423,10 @@ const shallowReactiveHandlers = {
 
 #### 只读响应转换
 
-某些场景中我们希望响应式的对象可读不可更改，我们需要配置一个只进行只读响应转换的handler；
+某些场景中我们希望响应式的对象可读不可更改，我们需要配置一个只进行只读响应转换的`handler`；
 
-- 当发生修改时，可以在handler中拦截修改操作，如果触发则直接抛出异常。
-- 因为targetObject是只读的，也没有必要再对其进行track。在get函数中判断是否需要track
+- 当发生修改时，可以在`handler`中拦截修改操作，如果触发则直接抛出异常。
+- 因为`targetObject`是只读的，也没有必要再对其进行`track`。在`get`函数中判断是否需要`track`
 
 ```js
 export const readonlyHandlers = {
@@ -1481,7 +1481,7 @@ export const readonlyHandlers = {
 
 同理可知，浅层只读响应转换：
 
-- 不在对targetObject进行深层次的转换
+- 不在对`targetObject`进行深层次的转换
 - 拦截修改操作，直接给出警告或者忽略
 
 上代码：
@@ -1529,15 +1529,15 @@ const shallowReadonlyHandlers = {
 
 回看上面的代码，我们发现代码中存在大量的重复冗余的操作，非常有必要对其进行整理：
 
-- 各个handler中，配置的函数相同，只不过可能以为涉及到需求的原因，方法内部做了逻辑修改
-- 方法中代码存在重复：get函数、set函数中代码存在多处重复的代码
-  - get函数的主要功能就是获取value，进行track
-  - set函数的主要功能就是设置value，进行trigger
-  - 没必要每个handler都把两个函数的核心作用进行重复
+- 各个`handler`中，配置的函数相同，只不过可能以为涉及到需求的原因，方法内部做了逻辑修改
+- 方法中代码存在重复：`get`函数、`set`函数中代码存在多处重复的代码
+  - get函数的主要功能就是获取`value`，进行`track`
+  - set函数的主要功能就是设置`value`，进行`trigger`
+  - 没必要每个`handler`都把两个函数的核心作用进行重复
 
 重构方法：
 
-- 通过createGetter、createSetter函数创建get、set函数，利用闭包，通过传参获取不同属性的函数
+- 通过`createGetter`、`createSetter`函数创建`get`、`set`函数，利用闭包，通过传参获取不同属性的函数
 - 利用创建出的不同方法组合handler
 
 ```js
@@ -1695,16 +1695,16 @@ const shallowReadonlyHandlers = extend(
 
 ### Map&Set的变化侦测
 
-前面我们学习了Object & Array的handler的配置及各个方法的实现。同样的逻辑，也适用于Map、Set类型的数据：
+前面我们学习了`Object & Array`的`handler`的配置及各个方法的实现。同样的逻辑，也适用于`Map、Set`类型的数据：
 
-- 拆分处理各个method
-- 根据需要配置handler
+- 拆分处理各个`method`
+- 根据需要配置`handler`
 
-#### 经过代理的Map、Set实例
+#### 经过代理的`Map、Set`实例
 
-直接上代码，让我们看下map、set经过proxy代理后，在进行操作会发生什么事情？
+直接上代码，让我们看下`map、set`经过`proxy`代理后，在进行操作会发生什么事情？
 
-**经过代理的map**
+**经过代理的`map`**
 
 ```js
 let map = new Map([[1, 2], [3, 4], [5, 6]]);
@@ -1803,7 +1803,7 @@ for(let [key, value] of proxyMap) {
 // "name", "daRui"
 ```
 
-**经过代理的set**
+**经过代理的`set`**
 
 ```js
 let set = new Set([1, 2, 3, 4, 5])
@@ -1904,31 +1904,31 @@ console.log(proxySet.clear())
 // value: function
 ```
 
-- 出现上面输出结果是因为proxy代理的是Map、Set的实例
-- 我们调用的是实例上的方法，就会触发访问方法的getter函数
-- 故Map & Set类型的targetObject，不能使用与Object & Array相同的handler
-- 需要为Map & Set创建方法，并配置handler
+- 出现上面输出结果是因为`proxy`代理的是`Map、Set`的实例
+- 我们调用的是实例上的方法，就会触发访问方法的`getter`函数
+- 故`Map & Set`类型的`targetObject`，不能使用与`Object & Array`相同的`handler`
+- 需要为`Map & Set`创建方法，并配置`handler`
 
 #### 增删改查
 
-- map & set类型需配置的handler与Object & Array相同：响应式、浅层、只读、浅层只读
+- `map & set`类型需配置的`handler`与`Object & Array`相同：响应式、浅层、只读、浅层只读
 - 实例方法都需要独立处理
 - 设计思路
-  - 因为实例方法都是先触发方法访问的getter函数
-  - 所以配置的handler对象只需有一个getter函数
+  - 因为实例方法都是先触发方法访问的`getter`函数
+  - 所以配置的`handler`对象只需有一个`getter`函数
   - 在get函数内部拦截方法
-  - 在方法内部做track/trigger工作
-  - 通过map/set的原始方法去获取value，并返回
+  - 在方法内部做`track/trigger`工作
+  - 通过`map/set`的原始方法去获取value，并返回
 
 前置知识补充：
 
-- Vue3会为每个被转换的对象，设置一个`ReactiveFlags.RAW`属性
-- 值是原始targetObject
-- toRaw函数
-  - 返回 [`reactive`](https://v3.cn.vuejs.org/api/basic-reactivity.html#reactive) 或 [`readonly`](https://v3.cn.vuejs.org/api/basic-reactivity.html#readonly) 代理的原始targetObject
+- `Vue3`会为每个被转换的对象，设置一个`ReactiveFlags.RAW`属性
+- 值是原始`targetObject`
+- `toRaw`函数
+  - 返回 [`reactive`](https://v3.cn.vuejs.org/api/basic-reactivity.html#reactive) 或 [`readonly`](https://v3.cn.vuejs.org/api/basic-reactivity.html#readonly) 代理的原始`targetObject`
   - 可用于临时读取数据而无需承担代理访问/跟踪的开销
   - 也可用于写入数据而避免触发更改
-  - 原理：通过递归，脱proxy，找到原始值
+  - 原理：通过递归，脱`proxy`，找到原始值
 
 ```js 
 function toRaw(observed) {
@@ -1938,7 +1938,7 @@ function toRaw(observed) {
 }
 ```
 
-- 配置不同的handler，就去要用相应的响应转换函数处理result
+- 配置不同的`handler`，就去要用相应的响应转换函数处理result
 - 可以根据参数类型获去相应的转换函数
 
 ```js
@@ -1951,17 +1951,17 @@ const toShallow = (value) => value
 const getProto = (v) => Reflect.getPrototypeOf(v)
 ```
 
-> 这里我们直接讲解Vue3 reactive中的源码部分，当然代码是经过省略的，但是会保留核心逻辑。
+> 这里我们直接讲解`Vue3 reactive`中的源码部分，当然代码是经过省略的，但是会保留核心逻辑。
 >
 > 先理解主要思路，在关注细节。
 
-- get函数
-  - 用于Map实例根据key获取value
-  - map类型的key可以是引用类型，也可能是代理实例
-  - target & key都需要进行toRaw操作
-  - 需要根须参数判断是否需要进行track，收集相关依赖
-  - 需要调用原始target的 get方法获取value
-  - 最后需要返回经过代理的value
+- `get`函数
+  - 用于`Map实例根据key获取`value`
+  - `map类型的key可以是引用类型，也可能是代理实例
+  - `target & key`都需要进行`toRaw`操作
+  - 需要根须参数判断是否需要进行`track`，收集相关依赖
+  - 需要调用原始`target`的 `get`方法获取`value`
+  - 最后需要返回经过代理的`value`
 
 ```js
 function get(target, key, isReadonly = false,isShallow = false) {
@@ -1999,11 +1999,11 @@ function get(target, key, isReadonly = false,isShallow = false) {
 
 ```
 
-- set函数
-  - 用于Map类型添加元素
-  - map类型添加元素，有可能是新增key:value，有可能是修改
+- `set`函数
+  - 用于`Map`类型添加元素
+  - `map`类型添加元素，有可能是新增`key:value`，有可能是修改
   - 需要对key是否存在进行判断
-  - set函数会修改target，需要进行trigger，触发响应
+  - set函数会修改`target`，需要进行`trigger`，触发响应
 
 ```js
 function set(this, key, value) {
@@ -2039,11 +2039,11 @@ function set(this, key, value) {
 }
 ```
 
-- has函数
-  - 可用于Set/Map实例判断某元素是否存在
-  - has属性并不会更改targetObject，
-  - 属于对target的访问操作
-  - 需要对key进行track操作
+- `has`函数
+  - 可用于`Set/Map`实例判断某元素是否存在
+  - `has`属性并不会更改`targetObject`，
+  - 属于对`target`的访问操作
+  - 需要对`key`进行`track`操作
 
 ```js
 
@@ -2066,9 +2066,9 @@ function has(this, key, isReadonly = false) {
 }
 ```
 
-- add函数
-  - 用于Set实例添加元素，添加的元素唯一
-  - 如果添加的value先前不存在，则会使target发生更改，需要进行trigger操作，触发响应
+- `add`函数
+  - 用于`Set`实例添加元素，添加的元素唯一
+  - 如果添加的`value`先前不存在，则会使`target`发生更改，需要进行`trigger`操作，触发响应
 
 ```js
 function add(this, value) {
@@ -2091,10 +2091,10 @@ function add(this, value) {
 
 ```
 
-- size属性
-  - 用于返回Set/Map的成员总数
-  - 不会触发target的变化
-  - 但是需要进行track
+- `size`属性
+  - 用于返回`Set/Map`的成员总数
+  - 不会触发`target`的变化
+  - 但是需要进行`track`
 
 ```js
 function size(target, isReadonly = false) {
@@ -2107,9 +2107,9 @@ function size(target, isReadonly = false) {
 }
 ```
 
-- clear函数
-  - 用于清除Set/Map实例的所有成员
-  - 会改变target，需要调用trigger函数
+- `clear`函数
+  - 用于清除`Set/Map`实例的所有成员
+  - 会改变`target`，需要调用`trigger`函数
 
 ```js
 function clear(this) {
@@ -2131,9 +2131,9 @@ function clear(this) {
 }
 ```
 
-- delete函数
-  - 用于删除Set/Map实例的某个成员
-  - 会更改原始target，需要trigger
+- `delete`函数
+  - 用于删除`Set/Map`实例的某个成员
+  - 会更改原始`target`，需要`trigger`
 
 ```js
 function deleteEntry(this, key) {
@@ -2163,16 +2163,14 @@ function deleteEntry(this, key) {
 }
 ```
 
-
-
 #### 遍历模式&迭代模式
 
-- forEach函数
+- `forEach`函数
   - 属于设计模式中的遍历器模式
-  - 用于遍历Set/Map实例，接受一个回调，会将key & value 传给callback
-  - 针对不同的响应接口，我们根据判断创建forEach
-  - 我们可以通过参数isReadonly, isShallow获取不同的forEach
-  - forEach函数并不会更改原始对象，只需进行track工作
+  - 用于遍历`Set/Map`实例，接受一个回调，会将`key & value` 传给`callback`
+  - 针对不同的响应接口，我们根据判断创建`forEach`
+  - 我们可以通过参数`isReadonly`, `isShallow`获取不同的`forEach`
+  - `forEach`函数并不会更改原始对象，只需进行`track`工作
 
 ```js
 function createForEach(isReadonly, isShallow) {
@@ -2198,14 +2196,14 @@ function createForEach(isReadonly, isShallow) {
 }
 ```
 
-- iterable迭代器模式
-  - Map/Set的实例有三种方法：keys()、values()、entries()
+- `iterable`迭代器模式
+  - `Map/Set`的实例有三种方法：`keys()、values()、entries()`
   - 这三种方法都遵循可迭代协议 & 可迭代器协议
-  - Vue3内部同样对这三个方法做了处理
+  - `Vue3`内部同样对这三个方法做了处理
   - 通过自行实现迭代器，模拟这三个方法
-  - 在创建的迭代器内部，通过调用原始对象的方法获取result
-  - 进行track，并对result进行响应处理
-  - 最后在返回的可迭代对象中，返回经过响应转换的result
+  - 在创建的迭代器内部，通过调用原始对象的方法获取`result`
+  - 进行`track`，并对`result`进行响应处理
+  - 最后在返回的可迭代对象中，返回经过响应转换的`result`
   - 下面代码的注释中已经标识出主要逻辑
 
 ```js
@@ -2294,9 +2292,9 @@ iteratorMethods.forEach(method => {
 >
 > 迭代器：https://es6.ruanyifeng.com/#docs/iterator
 
-#### 创建Handler
+#### 创建`Handler`
 
-上面我们已经明白了各种方法的创建工作，接下来就是做类似Object & Array类型相同的工作——配置出不同的handler。
+上面我们已经明白了各种方法的创建工作，接下来就是做类似`Object & Array`类型相同的工作——配置出不同的`handler`。
 
 ```js
 // 对于只读情况下会触发更改的操作，我们统一使用createReadonlyMethod方法创建
@@ -2455,7 +2453,7 @@ const shallowReadonlyCollectionHandlers = {
 
 最后再用两张图让我们总结下上面的过程吧！
 
-**baseHandlers**：
+**`baseHandlers`**：
 
 ![baseHandlers](D:\vue3深入浅出\docs\.vuepress\public\img\baseHandlers.png)
 
@@ -2467,7 +2465,7 @@ const shallowReadonlyCollectionHandlers = {
 
 ### `reactive`
 
-前面我们已经知道如何配置Handler接下来要创建不同的响应转换函数，创建函数其实就是给Proxy，配置不同的handler。让我们改写下在第一章节中代理模式中提到的createReactiveObject函数：
+前面我们已经知道如何配置Handler接下来要创建不同的响应转换函数，创建函数其实就是给`Proxy`，配置不同的`handler`。让我们改写下在第一章节中代理模式中提到的`createReactiveObject`函数：
 
 **第一章节写的响应函数**
 
@@ -2501,8 +2499,8 @@ function createReactiveObject(target, handlers, proxyMap) {
 
 **改写`createReactiveObject`**：
 
-- 将handlers作为参数传递给函数
-- 在内部通过判断target的类型，配置handlers
+- 将`handlers`作为参数传递给函数
+- 在内部通过判断`target`的类型，配置`handlers`
 
 ```js
 
@@ -2552,7 +2550,7 @@ function createReactiveObject(target, isReadonly, baseHandlers, collectionHandle
 #### `reactive`
 
 - 返回对象的响应式副本
-- 对target进行“深层”代理，影响所有嵌套 property
+- 对`target`进行“深层”代理，影响所有嵌套 `property`
 
 ```js
 function reactive(target) {
@@ -2572,7 +2570,7 @@ function reactive(target) {
 
 #### `shallowReactive`
 
-- 创建一个响应式代理，只跟踪其自身 property 的响应性
+- 创建一个响应式代理，只跟踪其自身` property` 的响应性
 - 但不执行嵌套对象的深层响应式转换
 
 ```js
@@ -2590,7 +2588,7 @@ function shallowReactive(target) {
 #### `readonly`
 
 - 接受一个对象 (响应式或纯对象) 或 [ref](https://v3.cn.vuejs.org/api/refs-api.html#ref) 并返回原始对象的只读代理。
-- 只读代理是深层的：任何被访问的嵌套 property 也是只读的。
+- 只读代理是深层的：任何被访问的嵌套` property `也是只读的。
 
 ```js
 function readonly(target) {
@@ -2608,7 +2606,7 @@ function readonly(target) {
 
 #### `shallowReadonly`
 
-- 创建一个 proxy，使其自身的 property 为只读
+- 创建一个 `proxy`，使其自身的 `property` 为只读
 - 但不执行嵌套对象的深度只读转换
 
 ```js
@@ -2665,9 +2663,9 @@ function isProxy(value: unknown): boolean {
 
 #### `markRaw`
 
-- 标记一个对象，使其永远不会转换为 proxy。[返回对象本身](https://v3.cn.vuejs.org/api/basic-reactivity.html#markraw)。
-- 原理：给value定义一个ReactiveFlags.SKIP属性并设置值为true
-- 在reactive时对该属性进行判断
+- 标记一个对象，使其永远不会转换为 `proxy`。[返回对象本身](https://v3.cn.vuejs.org/api/basic-reactivity.html#markraw)。
+- 原理：给v`alue`定义一个`ReactiveFlags.SKIP`属性并设置值为`true`
+- 在`reactive`时对该属性进行判断
 
 ```js
 function markRaw (value) {
@@ -2678,11 +2676,11 @@ function markRaw (value) {
 
 ### `ref`
 
-学习Vue3时，有一个疑问：已经有一个reactive函数了，为什么还有搞一个ref呢？后来看了源码才明白部分原由。
+学习`Vue3`时，有一个疑问：已经有一个`reactive`函数了，为什么还有搞一个ref呢？后来看了源码才明白部分原由。
 
-在reactive中，我们并不能转换基础类型，只能对对象类型进行代理。而要如何实现对基础类型的代理呢？
+在`reactive`中，我们并不能转换基础类型，只能对对象类型进行代理。而要如何实现对基础类型的代理呢？
 
-创建一个Ref Class。通过类实例来实现get & set 的拦截操作。
+创建一个`Ref Class`。通过类实例来实现`get & set `的拦截操作。
 
 > ref可以用于原始类型也能用于对象类型的转换，ref弥补reactive基础类型的转换应该是部分原因，尤大应该有其他跟高层次的考虑和设计。只是我暂时看不到呢~
 
@@ -2733,12 +2731,12 @@ function createRef(rawValue, shallow = false) {
 }
 ```
 
-有了createRef函数，接下来就是创建API了
+有了`createRef`函数，接下来就是创建`API`了
 
 #### `ref`
 
-- 接受一个value并返回一个响应式且可变的 ref 对象。
-- ref 对象具有指向内部值的单个 property `.value`
+- 接受一个`value`并返回一个响应式且可变的 `ref `对象。
+- `ref `对象具有指向内部值的单个 property `.value`
 
 ```js
 function ref(value) {
@@ -2750,7 +2748,7 @@ function ref(value) {
 
 #### `shallowRef`
 
-- 创建一个跟踪自身 `.value` 变化的 ref，但不会使其值也变成响应式的。
+- 创建一个跟踪自身 `.value` 变化的` ref`，但不会使其值也变成响应式的。
 
 ```js
 function shallowRef(value) {
@@ -2760,8 +2758,8 @@ function shallowRef(value) {
 
 #### `isRef`
 
-- 判断value是否为ref对象
-- 注意上面我们在RefImpl Class中设置的一个只读属性 `__v_isRef`
+- 判断`value`是否为`ref`对象
+- 注意上面我们在`RefImpl Class`中设置的一个只读属性 `__v_isRef`
 
 ```js
 function isRef(r) {
@@ -2772,7 +2770,7 @@ function isRef(r) {
 #### `toRef`
 
 - 为源响应式对象上的某个 property 新创建一个 [`ref`](https://v3.cn.vuejs.org/api/refs-api.html#ref)
-- 当需要将 prop 的 ref 传递给复合函数时，`toRef` 很有用
+- 当需要将` prop` 的` ref `传递给复合函数时，`toRef` 很有用
 
 ```js
 class ObjectRefImpl {
@@ -2798,9 +2796,9 @@ function toRef(object,key) {
 
 #### `toRefs`
 
-- 将响应式对象转换为普通对象，其中结果对象的每个 property 都是指向原始对象相应 property 的 [`ref`](https://v3.cn.vuejs.org/api/refs-api.html#ref)。
+- 将响应式对象转换为普通对象，其中结果对象的每个 property 都是指向原始对象相应 `property `的 [`ref`](https://v3.cn.vuejs.org/api/refs-api.html#ref)。
 - 当从组合式函数返回响应式对象时，对响应式对象进行解构非常有用
-- 原理：遍历响应式对象，调用toRef转换每一对key:value
+- 原理：遍历响应式对象，调用`toRef`转换每一对`key:value`
 
 ```js
 function toRefs {
@@ -2817,7 +2815,7 @@ function toRefs {
 
 #### `customRef`
 
-- 创建一个自定义的 ref，并对其依赖项跟踪和更新触发进行显式控制。
+- 创建一个自定义的 `ref`，并对其依赖项跟踪和更新触发进行显式控制。
 - 需要一个工厂函数作为参数，该函数接收 `track` 和 `trigger` 函数作为参数
 - 并且应该返回一个带有 `get` 和 `set` 的对象
 
@@ -2851,7 +2849,7 @@ class CustomRefImpl {
 
 > 题外话：当我看了这段代码的设计，感觉真是太巧妙了
 
-**API实现**：
+**`API`实现**：
 
 ```js
 function customRef(factory){
@@ -2862,7 +2860,7 @@ function customRef(factory){
 #### `triggerRef`
 
 - 手动执行与 [`shallowRef`](https://v3.cn.vuejs.org/api/refs-api.html#shallowref) 关联的任何作用 (effect)
-- 内部其实就是进行手动trigger
+- 内部其实就是进行手动`trigger`
 
 ```js
 function triggerRef(ref) {
@@ -2874,14 +2872,14 @@ function triggerRef(ref) {
 
 ### 再谈`effect`（重要！！！）
 
-前面在讲变化侦测的时候，我们简单说了一下effect函数。但是并没有对effect在整个响应中的执行流程进行解析。这次一定要补上，因为如果不同effect的执行过程，就很难理解computed的原理。
+前面在讲变化侦测的时候，我们简单说了一下effect函数。但是并没有对`effect`在整个响应中的执行流程进行解析。这次一定要补上，因为如果不同`effect`的执行过程，就很难理解`computed`的原理。
 
-在vue3中会有四种级别的effect：
+在`vue3`中会有四种级别的`effect`：
 
 - 负责渲染更新的`componentEffect`
-- 负责处理watch的watchEffect
-- 负责处理computed的`computedEffect`
-- 用户自己使用effect API时创建的effct
+- 负责处理`watch`的`watchEffect`
+- 负责处理`compute`d的`computedEffect`
+- 用户自己使用`effect API`时创建的`effct`
 
 这次我们主要说`setupRenderEffect`、`computedEffect`。
 
@@ -2919,23 +2917,23 @@ Vue.createApp({
 
 ```
 
-在浏览器中，从上面的模板代码到渲染至可以进行响应交互的页面，Vue大概会做一下几件事：
+在浏览器中，从上面的模板代码到渲染至可以进行响应交互的页面，`Vue`大概会做一下几件事：
 
-- 执行setup函数，将state转为响应式，并将结果挂载至组件实例上
-- 对模板进行compiler，并渲染至视图
-- 在compile过程中，会**读取响应式数据**，读取的过程就会触发**getter**函数，就会进行**依赖收集**工作
-- 当在表单中输入数据，就会触发update事件，更改input，更改的过程就会触发**setter**函数，就会进行**响应更新**
+- 执行`setup`函数，将`state`转为响应式，并将结果挂载至组件实例上
+- 对模板进行`compiler`，并渲染至视图
+- 在`compiler`过程中，会**读取响应式数据**，读取的过程就会触发**`getter`**函数，就会进行**依赖收集**工作
+- 当在表单中输入数据，就会触发`update`事件，更改`input`，更改的过程就会触发**`setter`**函数，就会进行**响应更新**
 
-接着我们直接看下简版源码中是如何设计trigger函数的：
+接着我们直接看下简版源码中是如何设计`trigger`函数的：
 
-- trigger函数主要是获取与target关联的所有effect
-- 将需要遍历的effect，添加到将要进行遍历的set集合（会去重）
-- 遍历set，执行所有effect，触发响应。
+- trigger函数主要是获取与target关联的所有`effect`
+- 将需要遍历的`effect`，添加到将要进行遍历的set集合（会去重）
+- 遍历set，执行所有`effect`，触发响应。
 - 结合示例代码：
-  - 当用于在input框进行输入的时候，
-  - 会执行update函数，对input进行更改
-  - 触发trigger，收集所有与input相关的effects，遍历执行effects
-  - 这个时候就会执行componentEffect、computedEffect、用户自定义的effect
+  - 当用于在`input`框进行输入的时候，
+  - 会执行`update`函数，对`input`进行更改
+  - 触发`trigger`，收集所有与`input`相关的effects，遍历执行`effects`
+  - 这个时候就会执行`componentEffect`、`computedEffect`、用户自定义的`effect`
 
 ```js	
 function trigger (target, type, key, newValue, oldValue, oldTarget) {
@@ -3005,19 +3003,19 @@ function track (target, type, key) {
   }
 ```
 
-那执行effect的过程，又会发生哪些事情呢？我们接着结合源码和示例代码进行解读下：
+那执行`effect`的过程，又会发生哪些事情呢？我们接着结合源码和示例代码进行解读下：
 
-- effectStack栈主要是为了维护effect与dep之间的嵌套关系。
-- 负责更新activeEffect。（可以看下track函数和我们前面说的effect与其所处dep之间的关系）
-- enableTracking & resetTracking函数用于控制track的状态
-- 因为effect执行的过程中也会进行track工作。这时就需要判断是否需要为当前的state与effects构建依赖关系
-- 返回fn()的结果，执行finally内的代码，弹出当前的effect，更新下一个effect
+- `effectStack`栈主要是为了维护`effect`与`dep`之间的嵌套关系。
+- 负责更新`activeEffect`。（可以看下`track`函数和我们前面说的`effect`与其所处`dep`之间的关系）
+- `enableTracking & resetTracking`函数用于控制`track`的状态
+- 因为`effect`执行的过程中也会进行`track`工作。这时就需要判断是否需要为当前的`state`与`effects`构建依赖关系
+- 返回`fn()`的结果，执行`finally`内的代码，弹出当前的`effect`，更新下一个`effect`
 - 结合实例代码我们分析下：
-  1. 当在输入框输入数字5，input发生更改
-  2. callback函数先入栈 ==》effectStack状态：[callback] ==》callback执行 ==》访问input.value ==》进行track，打印input.value: 5  ==》callback函数出栈
-  3.  componentEffect 入栈 ==》 effectStack状态：[componentEffect ] ==》 更新input内的值  ==》进行track ==》更新div，需要调用computed的getter函数获取值
-  4. computedEffect 入栈 ==》 effectStack状态：[componentEffect ，computedEffect ] ==》当前activeEffect是computedEffect  ==》进行track ==》获取getter的值==》computedEffect 出栈 ==》进行track
-  5. componentEffect 出栈==》effectStack状态：当前activeEffect是componentEffect 
+  1. 当在输入框输入数字5，`input`发生更改
+  2. `callback`函数先入栈 ==》`effectStack`状态：`[callback] `==》`callback`执行 ==》访问`input.value` ==》进行`track`，打印`input.value: 5 `==》callback`函数出栈
+  3. ` componentEffect `入栈 ==》 `effectStack`状态：`[componentEffect ] `==》 更新`input`内的值  ==》进行`track `==》更新`div`，需要调用`computed`的`getter`函数获取值
+  4. `computedEffect` 入栈 ==》` effectStack`状态：`[componentEffect ，computedEffect ] `==》当前`activeEffect`是`computedEffect`  ==》进行`track `==》获取``getter`的值==》`computedEffect`出栈 ==》进行`track`
+  5. `componentEffect` 出栈==》`effectStack`状态：当前`activeEffect`是`componentEffect `
   6. 完成整个响应过程
 
 ```js
@@ -3088,16 +3086,16 @@ function createReactiveEffect (fn, options) {
 
 ```
 
-上面的过程可能比较绕，但是是有规律的，需要注意的是：effect执行的过程，会执行fn，fn很有可能触发track，进行依赖收集，而effecStack，主要是维护effect之间的更新顺序，总是先更新最后入栈的effect。
+上面的过程可能比较绕，但是是有规律的，需要注意的是：`effect`执行的过程，会执行`fn`，`fn`很有可能触发`track`，进行依赖收集，而`effecStack`，主要是维护`effect`之间的更新顺序，总是先更新最后入栈的`effect`。
 
-明白了上面effects的执行过程，就方便理解下面的computed了
+明白了上面`effects`的执行过程，就方便理解下面的`computed`了.
 
 ### `computed`
 
-说道computed，先让我们回想下怎么使用：
+说道`computed`，先让我们回想下怎么使用：
 
-- 可以给computed传一个 getter 函数，
-- 它会根据 getter 的返回值，返回一个不可变的响应式 [ref](https://v3.cn.vuejs.org/api/refs-api.html#ref) 对象。
+- 可以给`compute`d传一个 `getter `函数，
+- 它会根据` getter `的返回值，返回一个不可变的响应式 [ref](https://v3.cn.vuejs.org/api/refs-api.html#ref) 对象。
 
 ```js
 const count = ref(1)
@@ -3108,7 +3106,7 @@ console.log(plusOne.value) // 2
 plusOne.value++ // 错误
 ```
 
-- 或者，接受一个具有 `get` 和 `set` 函数的对象，用来创建可写的 ref 对象。
+- 或者，接受一个具有 `get` 和 `set` 函数的对象，用来创建可写的 `ref `对象。
 
 ```js
 const count = ref(1)
@@ -3123,9 +3121,17 @@ plusOne.value = 1
 console.log(count.value) // 0
 ```
 
-各位都知道computed强大的地方就是惰性更新，只有其依赖的值发生变化的时候才会，去更新。其实上面分析effect的过程已经，提现出来了。当其依赖的值发生变化的时候，负责渲染的compontentEffect函数会调用computedEffect获取新的值。
+各位都知道`computed`强大的地方就是惰性更新，只有其依赖的值发生变化的时候才会，去更新。其实上面分析`effect`的过程已经，提现出来了。当其依赖的值发生变化的时候，负责渲染的`compontentEffect`函数会调用`computedEffect`获取新的值。
 
-接下来让我们分析下简版源码的实现：
+`computed`主要是根据`dirty`去更新值。当`dirty`为`true`时，说明需要重新计算返回值，当`dirty`为`false`时，说明不需要重新计算返回值。
+
+当在模板中使用了一个数据渲染视图的时，如果这个数据是`computed`产生的，那么读取数据这个操作其实就是触发计算属性`getter`方法获取`value`，获取之后将计算属性的`_dirty`属性置为`false`，直到下次计算属性依赖的数据发生变化的之后，才会更改。
+
+当我们创建一个`computed`属性时，其实是配置了一个`lazy`为`true`，并有`scheduler`属性的`effect`。`computedEffect`的`scheduler`主要负责重置`_dirty`属性。并触发`trigger`。
+
+当模板中的数据发生变化的时候，会触发`trigger`，进行响应，执行所有的`effects`，如果`effect.scheduler`存在，则执行`effect.scheduler`函数，重置`_dirty`。负责渲染的`componentEffect`再重新读取计算属性的值时，会调用`computed`的`getter`方法。这时`dirty`为`true`，返回新的`value`后，`dirty`置为`false`。
+
+接下来让我们看下简版源码的实现：
 
 ```js
 // 创建computed API
@@ -3200,7 +3206,8 @@ class ComputedRefImpl {
       // 执行effect即执行getter，获取新值
       self._value = this.effect()
       // _dirty 置为false
-      self._dirty = false
+      self._dirty = fa
+        lse
     }
     // track 依赖收集
     track(self, TrackOpTypes.GET, 'value')
@@ -3212,10 +3219,9 @@ class ComputedRefImpl {
     this._setter(newValue)
   }
 }
-
-
 ```
 
-
+上述代码已经用注释标明了代码的主要逻辑，结合`effect`的执行逻辑，在进行分析就不难理解`computed`了。
 
 ## 总结
+
