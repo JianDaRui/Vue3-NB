@@ -2874,20 +2874,253 @@ function triggerRef(ref) {
 
 ![Ref](D:\vue3深入浅出\docs\.vuepress\public\img\Ref.png)
 
-### 再谈`effect`
+### 再谈`effect`（重要！！！）
 
 前面在讲变化侦测的时候，我们简单说了一下effect函数。但是并没有对effect在整个响应中的执行流程进行解析。这次一定要补上，因为如果不同effect的执行过程，就很难理解computed的原理。
 
 在vue3中会有四种级别的effect：
 
-- 负责渲染更新的`setupRenderEffect`
+- 负责渲染更新的`componentEffect`
 - 负责处理watch的watchEffect
 - 负责处理computed的`computedEffect`
 - 用户自己使用effect API时创建的effct
 
 这次我们主要说`setupRenderEffect`、`computedEffect`。
 
-一次vue3组件的正常渲染、响应更新的过程其实是这样的：
+这里先展示一段代码：
+
+```html
+<div id="app">
+  <input :value="input" @input="update" />
+  <div>{{output}}</div>
+</div>
+
+<script>
+const { ref, computed, effect } = Vue
+
+Vue.createApp({
+  setup() {
+    const input = ref(0)
+    const output = computed(function computedEffect() { return input.value + 5})
+    
+    // 会触发 computedEffect & 下面的effect重新执行
+    const update = _.debounce(e => { input.value = e.target.value*1 }, 50)
+    
+	effect(function callback() {
+        // 依赖收集
+        console.log(input.value)
+    })
+    return {
+      input,
+      output,
+      update
+    }
+  }
+}).mount('#app')
+</script>
+
+```
+
+在浏览器中，从上面的模板代码到渲染至可以进行响应交互的页面，Vue大概会做一下几件事：
+
+- 执行setup函数，将state转为响应式，并将结果挂载至组件实例上
+- 对模板进行compiler，并渲染至视图
+- 在compile过程中，会**读取响应式数据**，读取的过程就会触发**getter**函数，就会进行**依赖收集**工作
+- 当在表单中输入数据，就会触发update事件，更改input，更改的过程就会触发**setter**函数，就会进行**响应更新**
+
+接着我们直接看下简版源码中是如何设计trigger函数的：
+
+- trigger函数主要是获取与target关联的所有effect
+- 将需要遍历的effect，添加到将要进行遍历的set集合（会去重）
+- 遍历set，执行所有effect，触发响应。
+- 结合示例代码：
+  - 当用于在input框进行输入的时候，
+  - 会执行update函数，对input进行更改
+  - 触发trigger，收集所有与input相关的effects，遍历执行effects
+  - 这个时候就会执行componentEffect、computedEffect、用户自定义的effect
+
+```js	
+function trigger (target, type, key, newValue, oldValue, oldTarget) {
+    const depsMap = targetMap.get (target);
+    
+    // 没有相关依赖直接 返回
+    if (!depsMap) { 
+      return;
+    }
+    const effects = new Set ();
+    
+    // 添加需要遍历的 effect
+    const add = effectsToAdd => { 
+      if (effectsToAdd) {
+        effectsToAdd.forEach (effect => {
+          if (effect !== activeEffect || effect.allowRecurse) {
+            effects.add(effect);
+          }
+        });
+      }
+    };
+    
+    if (key !== void 0) {
+       add (depsMap.get (key));
+    } 
+    
+    // 遍历的回调函数
+    const run = effect => {
+      if (effect.options.scheduler) {
+        effect.options.scheduler (effect);
+      } else {
+          
+        // 执行effect函数
+        // 就会执行创建effect函数时传递的fn函数
+        effect();
+      }
+    };
+    
+    effects.forEach (run);
+  }
+
+function track (target, type, key) {
+    if (!shouldTrack || activeEffect === undefined) {
+      return;
+    }
+    let depsMap = targetMap.get (target);
+    if (!depsMap) {
+      targetMap.set (target, (depsMap = new Map ()));
+    }
+    let dep = depsMap.get (key);
+    if (!dep) {
+      depsMap.set (key, (dep = new Set ()));
+    }
+    // 维护effect与dep的关系
+    if (!dep.has (activeEffect)) {
+      dep.add (activeEffect);
+      activeEffect.deps.push (dep);
+      if (activeEffect.options.onTrack) {
+        activeEffect.options.onTrack ({
+          effect: activeEffect,
+          target,
+          type,
+          key,
+        });
+      }
+    }
+  }
+```
+
+那执行effect的过程，又会发生哪些事情呢？我们接着结合源码和示例代码进行解读下：
+
+- effectStack栈主要是为了维护effect与dep之间的嵌套关系。
+- 负责更新activeEffect。（可以看下track函数和我们前面说的effect与其所处dep之间的关系）
+- enableTracking & resetTracking函数用于控制track的状态
+- 因为effect执行的过程中也会进行track工作。这时就需要判断是否需要为当前的state与effects构建依赖关系
+- 返回fn()的结果，执行finally内的代码，弹出当前的effect，更新下一个effect
+- 结合实例代码我们分析下：
+  1. 当在输入框输入数字5，input发生更改
+  2. callback函数先入栈 ==》effectStack状态：[callback] ==》callback执行 ==》访问input.value ==》进行track，打印input.value: 5  ==》callback函数出栈
+  3.  componentEffect 入栈 ==》 effectStack状态：[componentEffect ] ==》 更新input内的值  ==》进行track ==》更新div，需要调用computed的getter函数获取值
+  4. computedEffect 入栈 ==》 effectStack状态：[componentEffect ，computedEffect ] ==》当前activeEffect是computedEffect  ==》进行track ==》获取getter的值==》computedEffect 出栈 ==》进行track
+  5. componentEffect 出栈==》effectStack状态：当前activeEffect是componentEffect 
+
+```js
+const effectStack = [];
+let activeEffect;
+let uid = 0;
+function createReactiveEffect (fn, options) {
+    const effect = function reactiveEffect () { 
+      if (!effect.active) {
+        return fn ();
+      }
+      if (!effectStack.includes (effect)) {
+        // 首先需要将effect在其所处的deps中移除
+        cleanup (effect);
+        try {
+          // 恢复track
+          enableTracking ();
+          // 入栈
+          effectStack.push(effect);
+          // 设置当前effect
+          // fn执行的过程又会维护activeEffect与dep的关系
+          activeEffect = effect;
+            
+          // 执行fn
+          // 这里的fn可以是componentEffect函数、创建watch时传递的callback、computedEffect的getter函数
+          // 也可以是用户使用effect API 传递的callback函数
+          // 这些函数内部很可能对state进行访问，执行的过程就会触发getter，即进行track，进行依赖收集
+          return fn ();
+        } finally {
+          // 出栈，弹出当前effect
+          effectStack.pop();
+          // 重置track
+          resetTracking ();
+          // 更新下一个effect
+          activeEffect = effectStack[effectStack.length - 1];
+        }
+      }
+    };
+    effect.id = uid++;
+    effect.allowRecurse = !!options.allowRecurse;
+    effect._isEffect = true;
+    effect.active = true;
+    effect.raw = fn;
+    effect.deps = [];
+    effect.options = options;
+    return effect;
+  }
+
+  function cleanup (effect) {
+    const {deps} = effect;
+    if (deps.length) {
+      for (let i = 0; i < deps.length; i++) {
+        deps[i].delete (effect);
+      }
+      deps.length = 0;
+    }
+  }
+
+  function enableTracking() {
+    trackStack.push(shouldTrack)
+    shouldTrack = true
+  }
+
+  function resetTracking() {
+    const last = trackStack.pop()
+    shouldTrack = last === undefined ? true : last
+  }
+
+```
+
+
+
+```js
+
+
+function track (target, type, key) {
+    if (!shouldTrack || activeEffect === undefined) {
+      return;
+    }
+    let depsMap = targetMap.get (target);
+    if (!depsMap) {
+      targetMap.set (target, (depsMap = new Map ()));
+    }
+    let dep = depsMap.get (key);
+    if (!dep) {
+      depsMap.set (key, (dep = new Set ()));
+    }
+    if (!dep.has (activeEffect)) {
+      dep.add (activeEffect);
+      activeEffect.deps.push (dep);
+      if (activeEffect.options.onTrack) {
+        activeEffect.options.onTrack ({
+          effect: activeEffect,
+          target,
+          type,
+          key,
+        });
+      }
+    }
+  }
+
+```
 
 
 
@@ -2897,7 +3130,7 @@ function triggerRef(ref) {
 
 ### `computed`
 
-说道computed，想让我们回想下怎么使用：
+说道computed，先让我们回想下怎么使用：
 
 - 可以给computed传一个 getter 函数，
 - 它会根据 getter 的返回值，返回一个不可变的响应式 [ref](https://v3.cn.vuejs.org/api/refs-api.html#ref) 对象。
@@ -3015,8 +3248,4 @@ function computed(getterOrOptions) {
 
 ```
 
-
-
 ## 总结
-
-[]: 
