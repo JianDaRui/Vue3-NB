@@ -848,13 +848,13 @@ export function track(target, type, key) {
 }
 ```
 
-#### 数据与依赖之间的关系（待完善）
+#### 数据与依赖之间的关系
 
 在Vue2中，是通过Observe、Dep、Watcher来维持value与watcher之间的关系。
 
 但是Vue3中没有了上面的几个类。那它是如何维持value与effect之间的关系的呢？
 
-我们看一段伪代码：
+我们看一段代码：
 
 ```js
 import { reactive } from "vue"
@@ -876,9 +876,7 @@ obj.age = 27
 obj.otherInfo.temp1.push("羽毛球")
 ```
 
-当obj的属性发生变化的时候，我们需要去执行所有与之相关的effect，触发响应。
-
-
+当obj的属性发生变化的时候，我们需要去执行所有与之相关的effect，触发响应。Vue中，state与依赖的关系，可以具体到最基本的 key:value，
 
 ![数据与依赖之间的关系](D:\vue3深入浅出\docs\.vuepress\public\img\effect_dep.png)
 
@@ -3020,6 +3018,7 @@ function track (target, type, key) {
   3.  componentEffect 入栈 ==》 effectStack状态：[componentEffect ] ==》 更新input内的值  ==》进行track ==》更新div，需要调用computed的getter函数获取值
   4. computedEffect 入栈 ==》 effectStack状态：[componentEffect ，computedEffect ] ==》当前activeEffect是computedEffect  ==》进行track ==》获取getter的值==》computedEffect 出栈 ==》进行track
   5. componentEffect 出栈==》effectStack状态：当前activeEffect是componentEffect 
+  6. 完成整个响应过程
 
 ```js
 const effectStack = [];
@@ -3089,44 +3088,9 @@ function createReactiveEffect (fn, options) {
 
 ```
 
+上面的过程可能比较绕，但是是有规律的，需要注意的是：effect执行的过程，会执行fn，fn很有可能触发track，进行依赖收集，而effecStack，主要是维护effect之间的更新顺序，总是先更新最后入栈的effect。
 
-
-```js
-
-
-function track (target, type, key) {
-    if (!shouldTrack || activeEffect === undefined) {
-      return;
-    }
-    let depsMap = targetMap.get (target);
-    if (!depsMap) {
-      targetMap.set (target, (depsMap = new Map ()));
-    }
-    let dep = depsMap.get (key);
-    if (!dep) {
-      depsMap.set (key, (dep = new Set ()));
-    }
-    if (!dep.has (activeEffect)) {
-      dep.add (activeEffect);
-      activeEffect.deps.push (dep);
-      if (activeEffect.options.onTrack) {
-        activeEffect.options.onTrack ({
-          effect: activeEffect,
-          target,
-          type,
-          key,
-        });
-      }
-    }
-  }
-
-```
-
-
-
-当我们使用reactive(state)，创建响应式的时候，并不会直接触发track & trigger。过程应该是这样的
-
-#### `stop`
+明白了上面effects的执行过程，就方便理解下面的computed了
 
 ### `computed`
 
@@ -3159,9 +3123,37 @@ plusOne.value = 1
 console.log(count.value) // 0
 ```
 
+各位都知道computed强大的地方就是惰性更新，只有其依赖的值发生变化的时候才会，去更新。其实上面分析effect的过程已经，提现出来了。当其依赖的值发生变化的时候，负责渲染的compontentEffect函数会调用computedEffect获取新的值。
 
+接下来让我们分析下简版源码的实现：
 
 ```js
+// 创建computed API
+function computed(getterOrOptions) {
+  let getter
+  let setter
+
+  if (isFunction(getterOrOptions)) {
+    getter = getterOrOptions
+    setter = __DEV__
+      ? () => {
+          console.warn('Write operation failed: computed value is readonly')
+        }
+      : NOOP
+  } else {
+    getter = getterOrOptions.get
+    setter = getterOrOptions.set
+  }
+
+  return new ComputedRefImpl(
+    getter,
+    setter,
+    isFunction(getterOrOptions) || !getterOrOptions.set
+  )
+}
+
+
+// computed Class
 class ComputedRefImpl {
   private _value! 
   private _dirty = true
@@ -3222,30 +3214,8 @@ class ComputedRefImpl {
 }
 
 
-// 创建computed API
-function computed(getterOrOptions) {
-  let getter
-  let setter
-
-  if (isFunction(getterOrOptions)) {
-    getter = getterOrOptions
-    setter = __DEV__
-      ? () => {
-          console.warn('Write operation failed: computed value is readonly')
-        }
-      : NOOP
-  } else {
-    getter = getterOrOptions.get
-    setter = getterOrOptions.set
-  }
-
-  return new ComputedRefImpl(
-    getter,
-    setter,
-    isFunction(getterOrOptions) || !getterOrOptions.set
-  )
-}
-
 ```
+
+
 
 ## 总结
