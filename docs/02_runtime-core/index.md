@@ -276,9 +276,15 @@ Vue3中的watch代码中设计的功能比较多，为了方便理解，我们�
 
 - watchEffect是如何停止侦听的？
 
+前面提到wach其实也是一个effect，所谓的侦听就是watch与其他effect之间建立一个依赖关系，当数据发生变化的时候，去遍历执行所有的effect，就会执行watch。
+
+在上一篇文章中我们提到，effect中有个stop函数，用于断开传入effect与之相关的依赖之间的关系。
+
+所谓的停止侦听就是断开watch与所有相关effect的依赖关系。当创建watch Effect时，会为其维护一个deps属性，用于存储所有的dep。故当我们创建watch的时候，将当前
+
 ```js
 // reactive effect.ts 文件
-export function stop(effect: ReactiveEffect) {
+export function stop(effect) {
   if (effect.active) {
     cleanup(effect)
     if (effect.options.onStop) {
@@ -287,6 +293,16 @@ export function stop(effect: ReactiveEffect) {
     effect.active = false
   }
 }
+function cleanup(effect) {
+  const { deps } = effect
+  if (deps.length) {
+    for (let i = 0; i < deps.length; i++) {
+      deps[i].delete(effect)
+    }
+    deps.length = 0
+  }
+}
+
 // 真正的watch函数
 function doWatch(
   source,
