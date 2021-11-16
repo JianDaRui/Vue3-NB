@@ -1,13 +1,13 @@
-# 第二篇 RunTimeCore——computed & watch & scheduler 源码分析
+# 第二篇 RunTimeCore——computed & watch源码分析
 
-## computed API
+## `computed` API
 
-在上篇文章中我们分析了computed的原理。在runtime core中，有对computed做了一层处理，主要是记录当前实例的computed Effect至instance.effects。方便组件卸载的时候，清空依赖。
+在上篇文章中我们分析了`computed`的原理。在runtime core中，有对`computed`做了一层处理，主要是记录当前实例的`computed Effect`至`instance.effects`。方便组件卸载的时候，清空依赖。
 
 这里的代码较为简单，我们一起简单看下。
 
-- 记录组件创建阶段的 computed Effect 至 instance.effects，方便组件卸载的时候，移除当前实例的 computed effect
-- 我们使用的computed API就是经过runtime core处理过的computed
+- 记录组件创建阶段的 `computed Effect `至` instance.effects`，方便组件卸载的时候，移除当前实例的 `computed effect`
+- 我们使用的`computed` API就是经过runtime core处理过的`computed`
 
 ```typescript
 import {
@@ -29,24 +29,24 @@ function computed(getterOrOptions) {
 }
 ```
 
-## watch API
+## `watch` API
 
-Vue3中新增了一个响应式函数：watchEffect。在分析watch & watchEffect之前，我们一起先回顾下这两个API如何使用。
+Vue3中新增了一个响应式函数：`watchEffect`。在分析`watch & watchEffect`之前，我们一起先回顾下这两个API如何使用。
 
 ### 回顾
 
-watch与watchEffect都属于Vue中的响应式API。
+`watch`与`watchEffect`都属于Vue中的响应式API。
 
-> 注意：一提到响应式，大家就应该想到：getter & track、setter & trigger。
+> 注意：一提到响应式，大家就应该想到：`getter & track`、`setter & trigger`。
 
-#### watchEffect
+#### `watchEffect`
 
-- watchEffect可以根据响应数据状态的变化，自动或者重新执行传入的副作用函数。
+- `watchEffect`可以根据响应数据状态的变化，自动或者重新执行传入的副作用函数。
 
 - 他接受一个回调函数，并在创建的时候立即执行，同时对齐进行响应式依赖追踪。
-- 即建立当前传入的回调函数与所有相关effect的依赖关系。
+- 即建立当前传入的回调函数与所有相关`effect`的依赖关系。
 - 并在依赖变化的时候重新运行该回调函数。
-- 并会返回一个stop函数，用来停止侦听，即断开当前watchEffect与其所有依赖的effect之间的关系
+- 并会返回一个`stop`函数，用来停止侦听，即断开当前`watchEffect`与其所有依赖的`effect`之间的关系
 
 ```js
 const count = ref(0)
@@ -64,11 +64,11 @@ stop()
 count.value += 1
 ```
 
-当然watchEffect也可以接受异步回调函数作为参数。当回调函数为异步时：
+当然`watchEffect`也可以接受异步回调函数作为参数。当回调函数为异步时：
 
-- watchEffect可以给传入的函数传递一个异步的onInvalidate函数作为入参，用来注册清理watchEffect失效时的回调函数
-- 何时watchEffect会失效：
-  - 当手动调用stop函数的时候
+- `watchEffect`可以给传入的函数传递一个异步的`onInvalidate`函数作为入参，用来注册清理`watchEffect`失效时的回调函数
+- 何时`watchEffect`会失效：
+  - 当手动调用`stop`函数的时候
   - 当组件卸载的时候
 
 ```js
@@ -85,15 +85,15 @@ onUnmounted(() => {
 })
 ```
 
-为了提高刷新效率，Vue的响应式系统会缓存并异步处理所有watchEffect副作用函数，以避免同一个“tick” 中多个状态改变导致的不必要的重复调用。
+为了提高刷新效率，Vue的响应式系统会缓存并异步处理所有`watchEffect`副作用函数，以避免同一个“tick” 中多个状态改变导致的不必要的重复调用。
 
 > 关于如何缓存并异步处理，稍后源码中进行解析
 
-配置watchEffect，watchEffect可以接受两个参数，第二个参数对watchEffect进行配置：
+配置`watchEffect`，`watchEffect`可以接受两个参数，第二个参数对`watchEffect`进行配置：
 
-- 默认情况下（flush: 'pre'），watchEffect副作用会在所有的组件 `update` **前**执行
-- 当设置flush: 'post'时，组件更新后会重新运行watchEffect副作用
-- 当设置flush: 'sync'时，这将强制效果始终同步触发watchEffect副作用
+- 默认情况下`（flush: 'pre'）`，`watchEffec`t副作用会在所有的组件 `update` **前**执行
+- 当设置`flush: 'post'`时，组件更新后会重新运行`watchEffect`副作用
+- 当设置`flush: 'sync'`时，这将强制效果始终同步触发`watchEffect`副作用
 
 ```vue
 <template>
@@ -130,9 +130,9 @@ export default {
 </script>
 ```
 
-#### watch
+#### `watch`
 
-- watch等同于组件侦听器property
+- `watch`等同于组件侦听器`property`
 - 需要侦听特定的响应式数据源
 - 并在回调喊胡世宗执行副作用
 - 默认情况下是惰性的，只有当侦听的数据源发生变化的时候才会执行回调
@@ -156,7 +156,7 @@ watch(count, (count, prevCount) => {
 })
 ```
 
-##### 侦听多个数据源（直接侦听ref）：
+##### 侦听多个数据源（直接侦听`ref`）：
 
 > 注意虽然侦听的是多个数据源，但是当多个数据源发生改变的时候，侦听器仍只会执行一次
 
@@ -181,8 +181,8 @@ setup() {
 
 ##### 侦听响应式对象
 
-- deep可进行深度侦听
-- immediate可进行立即侦听
+- `deep`可进行深度侦听
+- `immediate`可进行立即侦听
 
 ```js
 const state = reactive({ 
@@ -212,31 +212,31 @@ state.attributes.name = 'Alex' // 日志: "deep" "Alex" "Alex"
 
 > 这里需要说下 【副作用】、【依赖】都是我们上一篇文章中提到的effet。
 >
-> 比较关键的是，我们这里接触的是Vue源码中的第二个级别的effect，第一个是compute Effect。这次要说的是watch Effect。
+> 比较关键的是，我们这里接触的是Vue源码中的第二个级别的`effect`，第一个是`compute Effect`。这次要说的是`watch Effect`。
 
 Ok，到这里我们基本已经回顾完这两个响应式API如何使用了，下面我们结合源码，进行分析。
 
 ### 分析
 
-通过回顾部分的内容，基本已经对watch & watchEffect有了点感觉，既然要分析源码实现，最好是带着问题来看：
+通过回顾部分的内容，基本已经对`watch & watchEffect`有了点感觉，既然要分析源码实现，最好是带着问题来看：
 
-1. watchEffect是如何停止侦听的？
-2. watchEffect是如何进行函数缓存的?
-3. watchEffect是如何异步进行刷新的？
-4. watch是如何侦听单个或者多个数据源的？
-5. watch是如何进行深度或者立即侦听响应的？
+1. `watchEffect`是如何停止侦听的？
+2. `watchEffect`是如何进行函数缓存的?
+3. `watchEffect`是如何异步进行刷新的？
+4. `watch`是如何侦听单个或者多个数据源的？
+5. `watch`是如何进行深度或者立即侦听响应的？
 
-Vue3中的watch代码中设计的功能比较多，为了方便理解，我们拆开来一点一点进行解析
+Vue3中的`watch`代码中设计的功能比较多，为了方便理解，我们拆开来一点一点进行解析
 
-#### watchEffect是如何停止侦听的？
+#### `watchEffect`是如何停止侦听的？
 
-前面提到wach其实也是一个effect，所谓的侦听就是watch与其他effect之间建立一个依赖关系，当数据发生变化的时候，去遍历执行所有的effect，就会执行watch。
+前面提到`watch`其实也是一个`effect`，所谓的侦听就是watch与其他`effect`之间建立一个依赖关系，当数据发生变化的时候，去遍历执行所有的`effect`，就会执行`watch`。
 
-在上一篇文章中我们提到，effect中有个stop函数，用于断开传入effect与之相关的依赖之间的关系。
+在上一篇文章中我们提到，`effect`中有个`stop`函数，用于断开传入`effect`与之相关的依赖之间的关系。
 
-所谓的停止侦听就是断开watch与所有相关effect的依赖关系。
+所谓的停止侦听就是断开`watch`与所有相关`effect`的依赖关系。
 
-当创建watch Effect时，会为其维护一个deps属性，用于存储所有的dep。故当我们创建watch的时候，将当前runner传给stop函数，并返回一个函数，用户调用的时候，就会停止侦听。
+当创建`watch Effect`时，会为其维护一个`deps`属性，用于存储所有的`dep`。故当我们创建`watch`的时候，将当前`runner`传给`stop`函数，并返回一个函数，用户调用的时候，就会停止侦听。
 
 下面代码我们暂时省略与停止侦听无关的代码，只需理解能解答问题的部分即可。
 
@@ -292,21 +292,21 @@ function doWatch(
 }
 ```
 
-runner就是effect API创建的watch Effect。watch对数据源进行侦听的时候，就会与其他依赖之间建立关系。即effect与dep之间相互耦合的关系。
+`runner`就是`effect API`创建的`watch Effect`。`watch`对数据源进行侦听的时候，就会与其他依赖之间建立关系。即`effect`与`dep`之间相互耦合的关系。
 
-当需要停止侦听的时候，通过调用doWatch返回的函数就可以断开runner与其他dep的依赖关系。
+当需要停止侦听的时候，通过调用`doWatch`返回的函数就可以断开`runner`与其他`dep`的依赖关系。
 
-#### watch是如何侦听单个或者多个数据源的？
+#### `watch`是如何侦听单个或者多个数据源的？
 
-在回顾部分我们知道，watch可以进行多种数据响应式数据类型的监听。
+在回顾部分我们知道，`watch`可以进行多种数据响应式数据类型的监听。
 
-当watch侦听的数据源发生变化的时候就会执行callback。这就是前面我们说的响应式。
+当`watch`侦听的数据源发生变化的时候就会执行`callback`。这就是前面我们说的响应式。
 
-在使用watch时，doWatch回创建一个 getter函数，用于确定数据源与call back之间的关系。
+在使用`watch`时，`doWatch`回创建一个 getter函数，用于确定数据源与`callback`之间的关系。
 
-getter函数用于获取数据源的更新后的值。当getter函数执行的时候，就会触发依赖收集。
+`getter`函数用于获取数据源的更新后的值。当`getter`函数执行的时候，就会触发依赖收集。
 
-所以Vue3是在getter函数中对数据源进行判断侦听的。下面我们先看下源码的getter部分，在继续分析。
+所以Vue3是在`getter`函数中对数据源进行判断侦听的。下面我们先看下源码的`getter`部分，在继续分析。
 
 ```js
 function doWatch(
@@ -399,37 +399,37 @@ function doWatch(
 }
 ```
 
-从上面的代码我们可以看出，doWatch内部共对数据源进行了四种情况的判断。
+从上面的代码我们可以看出，`doWatch`内部共对数据源进行了四种情况的判断。
 
 - 并且当数据源是响应式数据类型时，会自动进行深度侦听
 - 当侦听的是多个数据源的时候，会进行递归遍历
 
-- 当数据源是函数的时候，getter函数最终会调用 callWithAsyncErrorHandling异步执行侦听的函数。
-- 当deep为true时，会对getter进行递归遍历。
+- 当数据源是函数的时候，`getter`函数最终会调用 `callWithAsyncErrorHandling`异步执行侦听的函数。
+- 当`deep`为t`true`时，会对`getter`进行递归遍历。
 
-再结合上面分析停止侦听的代码，可以知道，当runner函数执行的时候，就是执行getter获取数据源新值的时候。
+再结合上面分析停止侦听的代码，可以知道，当`runner`函数执行的时候，就是执行`getter`获取数据源新值的时候。
 
 
 
 #### watchEffect是如何进行函数缓存 & 异步进行刷新的?
 
-我们知道当使用effect函数创建runner的时候，其实是创建了一个watch Effect。
+我们知道当使用`effect`函数创建`runner`的时候，其实是创建了一个`watch Effect`。
 
-> 这里回顾下，在computed中，Vue3是直接将effect返回的函数，赋给ComputedRefImpl实例的 effect属性，并在实例的getter函数中调用this.effect，从而获取 value。
+> 这里回顾下，在`computed`中，Vue3是直接将`effect`返回的函数，赋给`ComputedRefImpl`实例的`effect`属性，并在实例的`getter`函数中调用this.effect，从而获取 value。
 
-在使用watch的时候，我们并没有直接或间接使用effect函数返回的watch Effect函数获取新值。也没有必要这么使用。
+在使用`watch`的时候，我们并没有直接或间接使用`effect`函数返回的watch Effect函数获取新值。也没有必要这么使用。
 
-但是我们需要在相关依赖发生变化的时候重新执行watch Effect获取新值 & 执行call back。那该如何做？
+但是我们需要在相关依赖发生变化的时候重新执行`watch Effect`获取新值 & 执行`callback`。那该如何做？
 
-答案是通过给watch Effect 配置**scheduler**属性。
+答案是通过给`watch Effect` 配置**`scheduler`**属性。
 
-当进行响应派发的时候，回触发trigger函数，trigger函数最终会遍历执行所有相关effect。
+当进行响应派发的时候，回触发`trigger`函数，`trigger`函数最终会遍历执行所有相关`effect`。
 
-在执行effect的过程中会判断effect.scheduler是否存在，如果存在就会执行scheduler函数。
+在执行`effect`的过程中会判断`effect.scheduler`是否存在，如果存在就会执行`scheduler`函数。
 
-而watch Effect就是在scheduler中做的副作用函数的缓存和异步刷新的。
+而`watch Effect`就是在`scheduler`中做的副作用函数的缓存和异步刷新的。
 
-还是原来的套路，让我们先看下scheduler源码部分：
+还是原来的套路，让我们先看下`scheduler`源码部分：
 
 ```js
 // 真正的watch函数
@@ -490,19 +490,19 @@ function doWatch(
 - 在默认下情况下scheduler内部通过queuePreFlushCb将job缓存在待执行队列中，并通过Promise.resolve异步更新队列从而避免不必要的重复调用
 - 通过Promise创建微任务。在update之前执行所有的副作用函数，等于是提高了副作用函数的优先级
 
->这里我们先知道watchEffect是通过queuePreFlushCb做到的副作用函数缓存 & 异步批量更新。在后续的文章中会分析scheduler.ts部分的内容。到时候就会明白其作用。
+>这里我们先知道`watchEffect`是通过`queuePreFlushCb`做到的副作用函数缓存 & 异步批量更新。在后续的文章中会分析`scheduler.ts`部分的内容。到时候就会明白其作用。
 >
 >另：基础薄弱的同学，建议熟悉下浏览器的宏任务与微任务相关知识。
 
-在上面的代码中，可以知道scheduler主要的职责就是根据情况对job进行处理，那job是什么？
+在上面的代码中，可以知道`scheduler`主要的职责就是根据情况对`job`进行处理，那`job`是什么？
 
-job 就是异步队列中的一个个任务。主要负责：
+`job` 就是异步队列中的一个个任务。主要负责：
 
-- 通过判断callback，对watch 与 watchEffect进行判断
-- 通过执行runner获取新值
-- 通过callWithAsyncErrorHandling对回调函数进行异步处理，并将新旧值传给callback，这也是我们为什么可以在watch中拿到侦听数据源，变化前后value的原因。
+- 通过判断`callback`，对`watch` 与 `watchEffect`进行判断
+- 通过执行`runner`获取新值
+- 通过`callWithAsyncErrorHandling`对回调函数进行异步处理，并将新旧值传给`callback`，这也是我们为什么可以在`watch`中拿到侦听数据源，变化前后value的原因。
 
-下面一起看下job部分的代码实现：
+下面一起看下`job`部分的代码实现：
 
 ```js
 // Simple effect.
@@ -608,9 +608,9 @@ function doWatch(
 
 通过上面代码，可以知道：
 
-- 对于watchEffect，执行job，就是在直接执行runner函数
+- 对于`watchEffect`，执行`job`，就是在直接执行`runner`函数
 
-- 对于watch，首先需要通过runner获取新的value，并将新旧值传给callback函数。
+- 对于`watch`，首先需要通过`runner`获取新的`value`，并将新旧值传给`callback`函数。
 
 #### watch是如何进行深度或者立即侦听响应的？
 
@@ -698,17 +698,17 @@ function doWatch(
 }
 ```
 
-最后让我们看下完整的watch相关部分的代码：
+最后让我们看下完整的`watch`相关部分的代码：
 
 ```typescript
-// 简单的 watch effect.
+// 👉👉👉 watcheffect.
 export function watchEffect(
   effect: WatchEffect,
   options?: WatchOptionsBase
 ): WatchStopHandle {
   return doWatch(effect, null, options)
 }
-// 进行重载，侦听多个数据源 & cb
+// 👉👉👉进行重载，侦听多个数据源 & cb
 export function watch<
   T extends MultiWatchSources,
   Immediate extends Readonly<boolean> = false
@@ -718,7 +718,7 @@ export function watch<
   options?: WatchOptions<Immediate>
 ): WatchStopHandle
 
-// 重载：侦听多个数据源，并且数据源是只读的
+// 👉👉👉重载：侦听多个数据源，并且数据源是只读的
 export function watch<
   T extends Readonly<MultiWatchSources>,
   Immediate extends Readonly<boolean> = false
@@ -728,14 +728,14 @@ export function watch<
   options?: WatchOptions<Immediate>
 ): WatchStopHandle
 
-// 重载：简单watch Effect & cb
+// 👉👉👉重载：简单watch Effect & cb
 export function watch<T, Immediate extends Readonly<boolean> = false>(
   source: WatchSource<T>,
   cb: WatchCallback<T, Immediate extends true ? (T | undefined) : T>,
   options?: WatchOptions<Immediate>
 ): WatchStopHandle
 
-// 重载：侦听响应式对象 & cb
+// 👉👉👉重载：侦听响应式对象 & cb
 export function watch<
   T extends object,
   Immediate extends Readonly<boolean> = false
@@ -745,7 +745,7 @@ export function watch<
   options?: WatchOptions<Immediate>
 ): WatchStopHandle
 
-// 执行创建 watch
+// 👉👉👉执行创建 watch
 export function watch<T = any, Immediate extends Readonly<boolean> = false>(
   source: T | WatchSource<T>,
   cb: any,
@@ -757,14 +757,14 @@ export function watch<T = any, Immediate extends Readonly<boolean> = false>(
   // 返回的是一个stop函数
   return doWatch(source as any, cb, options)
 }
-// 真正的watch函数
+// 👉👉👉真正的watch函数
 function doWatch(
   source: WatchSource | WatchSource[] | WatchEffect | object,
   cb: WatchCallback | null,
   { immediate, deep, flush, onTrack, onTrigger }: WatchOptions = EMPTY_OBJ,
   instance = currentInstance
 ): WatchStopHandle {
-  // dev环境下判断 immediate, deep
+  // 👉👉👉dev环境下判断 immediate, deep
   if (__DEV__ && !cb) {
     if (immediate !== undefined) {
       warn(
@@ -779,7 +779,7 @@ function doWatch(
       )
     }
   }
-  // 校验数据源
+  // 👉👉👉校验数据源
   const warnInvalidSource = (s: unknown) => {
     warn(
       `Invalid watch source: `,
@@ -799,12 +799,12 @@ function doWatch(
     getter = () => source.value
     forceTrigger = !!source._shallow
   } else if (isReactive(source)) {
-    // 源是响应式对象
-    // 自动进行深度侦听
+    // 👉👉👉源是响应式对象
+    // 👉👉👉自动进行深度侦听
     getter = () => source
     deep = true
   } else if (isArray(source)) {
-    // 侦听多个源
+    // 👉👉👉侦听多个源
     isMultiSource = true
     forceTrigger = source.some(isReactive)
     getter = () =>
@@ -824,7 +824,7 @@ function doWatch(
         }
       })
   } else if (isFunction(source)) {
-    // 数据源是函数
+    // 👉👉👉数据源是函数
     if (cb) {
       // getter with cb
       getter = () =>
@@ -877,7 +877,7 @@ function doWatch(
 
   let cleanup: () => void
 
-  // 定义失效时需要传参的函数
+  // 👉👉👉定义失效时需要传参的函数
   let onInvalidate: InvalidateCbRegistrator = (fn: () => void) => {
     cleanup = runner.options.onStop = () => {
       callWithErrorHandling(fn, instance, ErrorCodes.WATCH_CLEANUP)
@@ -903,9 +903,9 @@ function doWatch(
 
   let oldValue = isMultiSource ? [] : INITIAL_WATCHER_VALUE
 
-  // 定义任务队列中的任务
-  // 用于执行runner函数
-  // 执行的过程会进行track & trigger
+  // 👉👉👉👉👉👉定义任务队列中的任务
+  // 👉👉👉用于执行runner函数
+  // 👉👉👉执行的过程会进行track & trigger
   const job: SchedulerJob = () => {
     if (!runner.active) {
       return
@@ -950,9 +950,10 @@ function doWatch(
     }
   }
 
-  // 将job标记为一个可以侦测的回调函数，以便调度器知道他可以自动进行响应触发（trigger）
+  // 👉👉👉将job标记为一个可以侦测的回调函数，以便调度器知道他可以自动进行响应触发（trigger）
   job.allowRecurse = !!cb
-
+      
+  // 👉👉👉
   // 调度器，有没有想到computed API 创建的时候，在配置项中设置的 scheduler
   // 在computed中scheduler主要负责重置 dirty
   // 当 watche Effect 侦测的数据源发生变化的时候
@@ -981,9 +982,9 @@ function doWatch(
     }
   }
 
-  // 定义runner
-  // watch 级别的effect
-  // runner执行，即执行getter函数
+  // 👉👉👉定义runner
+  // 👉👉👉watch 级别的effect
+  // 👉👉👉runner执行，即执行getter函数
   const runner = effect(getter, {
     lazy: true,
     onTrack,
@@ -991,15 +992,15 @@ function doWatch(
     scheduler
   })
   
-  // 将watch effect 存至instance.effects
-  // 当组件卸载的时候会清空当前runner与依赖之间的关系
+  // 👉👉👉将watch effect 存至instance.effects
+  // 👉👉👉当组件卸载的时候会清空当前runner与依赖之间的关系
   recordInstanceBoundEffect(runner, instance)
 
-  // initial run
+  // 👉👉👉initial run
   if (cb) {
     if (immediate) {
-      // 立即执行
-      // 即进行track & trigger
+      // 👉👉👉立即执行
+      // 👉👉👉即进行track & trigger
       job()
     } else {
       oldValue = runner()
@@ -1010,9 +1011,9 @@ function doWatch(
     runner()
   }
 
-  // 返回一个stop函数
-  // 用于断开runner与其他依赖之间的关系
-  // 并将其将从instance.effects中移除
+  // 👉👉👉返回一个stop函数
+  // 👉👉👉用于断开runner与其他依赖之间的关系
+  // 👉👉👉并将其将从instance.effects中移除
   return () => {
     stop(runner)
     // 
@@ -1022,8 +1023,8 @@ function doWatch(
   }
 }
 
-// this.$watch
-// 组件实例上的watch API
+// 👉👉👉 this.$watch
+// 👉👉👉 组件实例上的watch API
 export function instanceWatch(
   this: ComponentInternalInstance,
   source: string | Function,
@@ -1031,7 +1032,7 @@ export function instanceWatch(
   options?: WatchOptions
 ): WatchStopHandle {
   const publicThis = this.proxy as any
-  // 定义getter函数
+  // 👉👉👉 定义getter函数
   const getter = isString(source)
     ? source.includes('.')
       ? createPathGetter(publicThis, source)
@@ -1047,7 +1048,7 @@ export function instanceWatch(
   return doWatch(getter, cb.bind(publicThis), options, this)
 }
 
-// 获取侦听路径
+// 👉👉👉 获取侦听路径
 export function createPathGetter(ctx: any, path: string) {
   const segments = path.split('.')
   return () => {
@@ -1059,8 +1060,8 @@ export function createPathGetter(ctx: any, path: string) {
   }
 }
 
-// 递归遍历获取值
-// seen用于防止陷入死循环
+// 👉👉👉 递归遍历获取值
+// 👉👉👉 seen用于防止陷入死循环
 function traverse(value: unknown, seen: Set<unknown> = new Set()) {
   if (
     !isObject(value) ||
