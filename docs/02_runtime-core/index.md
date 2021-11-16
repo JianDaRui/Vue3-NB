@@ -185,8 +185,6 @@ export default {
 - 并在回调喊胡世宗执行副作用
 - 默认情况下是惰性的，只有当侦听的数据源发生变化的时候才会执行回调
 
-
-
 侦听单个数据源：
 
 ```js
@@ -280,7 +278,7 @@ Vue3中的watch代码中设计的功能比较多，为了方便理解，我们�
 
 在上一篇文章中我们提到，effect中有个stop函数，用于断开传入effect与之相关的依赖之间的关系。
 
-所谓的停止侦听就是断开watch与所有相关effect的依赖关系。当创建watch Effect时，会为其维护一个deps属性，用于存储所有的dep。故当我们创建watch的时候，将当前
+所谓的停止侦听就是断开watch与所有相关effect的依赖关系。当创建watch Effect时，会为其维护一个deps属性，用于存储所有的dep。故当我们创建watch的时候，将当前runner传给stop函数，并返回一个函数，用户调用的时候，就会停止侦听。
 
 ```js
 // reactive effect.ts 文件
@@ -332,6 +330,335 @@ function doWatch(
       remove(instance.effects!, runner)
     }
   }
+}
+```
+
+- watchEffect是如何进行函数缓存的?
+
+
+
+- watchEffect是如何异步进行刷新的？
+
+```js
+// 真正的watch函数
+function doWatch(
+  source,
+  cb,
+  { immediate, deep, flush, onTrack, onTrigger } = EMPTY_OBJ,
+  instance = currentInstance
+) {
+  
+  let getter: () => any
+  let forceTrigger = false
+  let isMultiSource = false
+  
+  /* Start: 开始定义getter函数 */
+  if (isRef(source)) {
+    // 源是ref类型
+    getter = () => source.value
+    forceTrigger = !!source._shallow
+  } else if (isReactive(source)) {
+    // 源是响应式对象
+    // 自动进行深度侦听
+    getter = () => source
+    deep = true
+  } else if (isArray(source)) {
+    // 侦听多个源
+    isMultiSource = true
+    forceTrigger = source.some(isReactive)
+    getter = () =>
+      // 遍历判断源
+      source.map(s => {
+        if (isRef(s)) {
+          return s.value
+        } else if (isReactive(s)) {
+          // 递归返回值
+          return traverse(s)
+        } else if (isFunction(s)) {
+          // 执行函数
+          return callWithErrorHandling(s, instance, ErrorCodes.WATCH_GETTER)
+        } else {
+          // 已上都不是 则进行警示
+          __DEV__ && warnInvalidSource(s)
+        }
+      })
+  } else if (isFunction(source)) {
+    // 数据源是函数
+    if (cb) {
+      // getter with cb
+      getter = () =>
+        callWithErrorHandling(source, instance, ErrorCodes.WATCH_GETTER)
+    } else {
+      // no cb -> simple effect
+      // 没有传回调函数的情况
+      getter = () => {
+        if (instance && instance.isUnmounted) {
+          return
+        }
+        if (cleanup) {
+          cleanup()
+        }
+        return callWithAsyncErrorHandling(
+          source,
+          instance,
+          ErrorCodes.WATCH_CALLBACK,
+          [onInvalidate]
+        )
+      }
+    }
+  } else {
+    getter = NOOP
+    __DEV__ && warnInvalidSource(source)
+  }
+  /* End: 定义getter函数结束 */
+
+  // 2.x array mutation watch compat
+  // Vue2做兼容处理
+  if (__COMPAT__ && cb && !deep) {
+    const baseGetter = getter
+    getter = () => {
+      const val = baseGetter()
+      if (
+        isArray(val) &&
+        checkCompatEnabled(DeprecationTypes.WATCH_ARRAY, instance)
+      ) {
+        traverse(val)
+      }
+      return val
+    }
+  }
+
+  if (cb && deep) {
+    // 深度侦听，则递归遍历getter函数返回的值
+    const baseGetter = getter
+    getter = () => traverse(baseGetter())
+  }
+
+  let cleanup: () => void
+
+  // 定义失效时需要传参的函数
+  let onInvalidate: InvalidateCbRegistrator = (fn: () => void) => {
+    cleanup = runner.options.onStop = () => {
+      callWithErrorHandling(fn, instance, ErrorCodes.WATCH_CLEANUP)
+    }
+  }
+
+  // 服务端渲染的情况下，不必创建一个真正的effect， onInvalidate 应该为一个空对象，
+  // 触发 immediate 为true
+  if (__NODE_JS__ && isInSSRComponentSetup) {
+    // we will also not call the invalidate callback (+ runner is not set up)
+    onInvalidate = NOOP
+    if (!cb) {
+      getter()
+    } else if (immediate) {
+      callWithAsyncErrorHandling(cb, instance, ErrorCodes.WATCH_CALLBACK, [
+        getter(),
+        undefined,
+        onInvalidate
+      ])
+    }
+    return NOOP
+  }
+
+  let oldValue = isMultiSource ? [] : INITIAL_WATCHER_VALUE
+
+  // 定义任务队列中的任务
+  // 用于执行runner函数
+  // 执行的过程会进行track & trigger
+  const job: SchedulerJob = () => {
+    if (!runner.active) {
+      return
+    }
+    if (cb) {
+      // watch(source, cb)
+      // runner执行就是在执行getter函数，获取newValue
+      const newValue = runner()
+      if (
+        deep ||
+        forceTrigger ||
+        (isMultiSource
+          ? (newValue as any[]).some((v, i) =>
+              hasChanged(v, (oldValue as any[])[i])
+            )
+          : hasChanged(newValue, oldValue)) ||
+        (__COMPAT__ &&
+          isArray(newValue) &&
+          isCompatEnabled(DeprecationTypes.WATCH_ARRAY, instance))
+      ) {
+        // watch API的处理方式
+        // cleanup before running cb again
+        if (cleanup) {
+          cleanup()
+        }
+        // 执行回调函数
+        // 因为我们在传入的cb中很有可能读取或者更改响应式数据
+        // 因此可能会进行 track || trigger
+        // 将newValue & oldValue传给cb
+        callWithAsyncErrorHandling(cb, instance, ErrorCodes.WATCH_CALLBACK, [
+          newValue, 
+          oldValue === INITIAL_WATCHER_VALUE ? undefined : oldValue,
+          onInvalidate
+        ])
+        // 将新值赋值给旧值
+        oldValue = newValue
+      }
+    } else {
+      // watchEffect
+      // watchEffect API的处理方式，直接执行runner
+      runner()
+    }
+  }
+
+  // 将job标记为一个可以侦测的回调函数，以便调度器知道他可以自动进行响应触发（trigger）
+  job.allowRecurse = !!cb
+
+  // 调度器，有没有想到computed API 创建的时候，在配置项中设置的 scheduler
+  // 在computed中scheduler主要负责重置 dirty
+  // 当 watche Effect 侦测的数据源发生变化的时候
+  // 会进行trigger，遍历执行所有与数据源相关的 effect
+  // 在遍历的过程中会判断effect.scheduler 是否存在
+  // 如果存在 则会执行scheduler（任务调度器），这一点与我们第一篇提到的computed的原理一样
+  // scheduler执行 其实就是在执行job，job执行就是在执行 runner Effect
+  // 即watch Effect
+  let scheduler: ReactiveEffectOptions['scheduler']
+  if (flush === 'sync') {
+    // 同步更新
+    scheduler = job as any // 任务调度函数被直接调用
+  } else if (flush === 'post') {
+    // 组件更新后
+    scheduler = () => queuePostRenderEffect(job, instance && instance.suspense)
+  } else {
+    // default: 'pre'
+    // 默认情况下
+    scheduler = () => {
+      if (!instance || instance.isMounted) {
+        // 进行异步更新
+        queuePreFlushCb(job)
+      } else {
+        // 使用 'pre' 选项，第一次调用必须在组件安装之前发生，以便同步调用。
+        job()
+      }
+    }
+  }
+
+  // 定义runner
+  // watch 级别的effect
+  // runner执行，即执行getter函数
+  const runner = effect(getter, {
+    lazy: true,
+    onTrack,
+    onTrigger,
+    scheduler
+  })
+  
+  // 将watch effect 存至instance.effects
+  // 当组件卸载的时候会清空当前runner与依赖之间的关系
+  recordInstanceBoundEffect(runner, instance)
+
+  // initial run
+  if (cb) {
+    if (immediate) {
+      // 立即执行
+      // 即进行track & trigger
+      job()
+    } else {
+      oldValue = runner()
+    }
+  } else if (flush === 'post') {
+    queuePostRenderEffect(runner, instance && instance.suspense)
+  } else {
+    runner()
+  }
+
+  // 返回一个stop函数
+  // 用于断开runner与其他依赖之间的关系
+  // 并将其将从instance.effects中移除
+  return () => {
+    stop(runner)
+    // 
+    if (instance) {
+      remove(instance.effects!, runner)
+    }
+  }
+}
+```
+
+- watch是如何侦听单个或者多个数据源的？
+
+```js
+function doWatch(
+  source,
+  cb,
+  { immediate, deep, flush, onTrack, onTrigger } = EMPTY_OBJ,
+  instance = currentInstance
+) {
+  // 省略部分代码...
+  
+  let getter: () => any
+  let forceTrigger = false
+  let isMultiSource = false
+  
+  /* Start: 开始定义getter函数 */
+  if (isRef(source)) {
+    // 源是ref类型
+    getter = () => source.value
+    forceTrigger = !!source._shallow
+  } else if (isReactive(source)) {
+    // 源是响应式对象
+    // 自动进行深度侦听
+    getter = () => source
+    deep = true
+  } else if (isArray(source)) {
+    // 侦听多个源
+    isMultiSource = true
+    forceTrigger = source.some(isReactive)
+    getter = () =>
+      // 遍历判断源
+      source.map(s => {
+        if (isRef(s)) {
+          return s.value
+        } else if (isReactive(s)) {
+          // 递归返回值
+          return traverse(s)
+        } else if (isFunction(s)) {
+          // 执行函数
+          return callWithErrorHandling(s, instance, ErrorCodes.WATCH_GETTER)
+        } else {
+          // 已上都不是 则进行警示
+          __DEV__ && warnInvalidSource(s)
+        }
+      })
+  } else if (isFunction(source)) {
+    // 数据源是函数
+    if (cb) {
+      // getter with cb
+      getter = () =>
+        callWithErrorHandling(source, instance, ErrorCodes.WATCH_GETTER)
+    } else {
+      // no cb -> simple effect
+      // 没有传回调函数的情况
+      getter = () => {
+        if (instance && instance.isUnmounted) {
+          return
+        }
+        if (cleanup) {
+          cleanup()
+        }
+        return callWithAsyncErrorHandling(
+          source,
+          instance,
+          ErrorCodes.WATCH_CALLBACK,
+          [onInvalidate]
+        )
+      }
+    }
+  } else {
+    getter = NOOP
+    __DEV__ && warnInvalidSource(source)
+  }
+  /* End: 定义getter函数结束 */
+  
+  // 省略部分代码...
 }
 ```
 
