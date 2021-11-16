@@ -39,6 +39,8 @@ watch与watchEffect都属于Vue中的响应式API。
 
 > 注意：一提到响应式，大家就应该想到：getter & track、setter & trigger。
 
+#### watchEffect
+
 - watchEffect可以根据响应数据状态的变化，自动或者重新执行传入的副作用函数。
 
 - 他接受一个回调函数，并在创建的时候立即执行，同时对齐进行响应式依赖追踪。
@@ -128,12 +130,14 @@ export default {
 </script>
 ```
 
+#### watch
+
 - watch等同于组件侦听器property
 - 需要侦听特定的响应式数据源
 - 并在回调喊胡世宗执行副作用
 - 默认情况下是惰性的，只有当侦听的数据源发生变化的时候才会执行回调
 
-侦听单个数据源：
+##### 侦听单个数据源：
 
 ```js
 // 侦听一个 getter
@@ -152,7 +156,7 @@ watch(count, (count, prevCount) => {
 })
 ```
 
-侦听多个数据源（直接侦听ref）：
+##### 侦听多个数据源（直接侦听ref）：
 
 > 注意虽然侦听的是多个数据源，但是当多个数据源发生改变的时候，侦听器仍只会执行一次
 
@@ -175,7 +179,7 @@ setup() {
 }
 ```
 
-侦听响应式对象
+##### 侦听响应式对象
 
 - deep可进行深度侦听
 - immediate可进行立即侦听
@@ -224,7 +228,7 @@ Ok，到这里我们基本已经回顾完这两个响应式API如何使用了，
 
 Vue3中的watch代码中设计的功能比较多，为了方便理解，我们拆开来一点一点进行解析
 
-- watchEffect是如何停止侦听的？
+#### watchEffect是如何停止侦听的？
 
 前面提到wach其实也是一个effect，所谓的侦听就是watch与其他effect之间建立一个依赖关系，当数据发生变化的时候，去遍历执行所有的effect，就会执行watch。
 
@@ -292,7 +296,7 @@ runner就是effect API创建的watch Effect。watch对数据源进行侦听的�
 
 当需要停止侦听的时候，通过调用doWatch返回的函数就可以断开runner与其他dep的依赖关系。
 
-- watch是如何侦听单个或者多个数据源的？
+#### watch是如何侦听单个或者多个数据源的？
 
 在回顾部分我们知道，watch可以进行多种数据响应式数据类型的监听。
 
@@ -388,13 +392,6 @@ function doWatch(
     __DEV__ && warnInvalidSource(source)
   }
   /* End: 定义getter函数结束 */
-  
-  // 深度侦听
-  if (cb && deep) {
-    // 深度侦听，则递归遍历getter函数返回的值
-    const baseGetter = getter
-    getter = () => traverse(baseGetter())
-  }
 
   /**
   *  省略部分代码...
@@ -414,9 +411,7 @@ function doWatch(
 
 
 
-- **watchEffect是如何进行函数缓存的?**
-
-- **watchEffect是如何异步进行刷新的？**
+#### watchEffect是如何进行函数缓存 & 异步进行刷新的?
 
 我们知道当使用effect函数创建runner的时候，其实是创建了一个watch Effect。
 
@@ -493,11 +488,43 @@ function doWatch(
 
 - 主要与创建watch时配置的flush有关
 - 在默认下情况下scheduler内部通过queuePreFlushCb将job缓存在待执行队列中，并通过Promise.resolve异步更新队列从而避免不必要的重复调用
-- 
+- 通过Promise创建微任务。在update之前执行所有的副作用函数，等于是提高了副作用函数的优先级
 
-> 基础薄弱的同学，建议熟悉下浏览器的宏任务与微任务相关知识。
+>这里我们先知道watchEffect是通过queuePreFlushCb做到的副作用函数缓存 & 异步批量更新。在后续的文章中会分析scheduler.ts部分的内容。到时候就会明白其作用。
+>
+>另：基础薄弱的同学，建议熟悉下浏览器的宏任务与微任务相关知识。
+
+在上面的代码中，可以知道scheduler主要的职责就是根据情况对job进行处理，那job是什么？
+
+job 就是异步队列中的一个个任务。主要负责：
+
+- 通过判断callback，对watch 与 watchEffect进行判断
+- 通过执行runner获取新值
+- 通过callWithAsyncErrorHandling对回调函数进行异步处理，并将新旧值传给callback，这也是我们为什么可以在watch中拿到侦听数据源，变化前后value的原因。
+
+下面一起看下job部分的代码实现：
 
 ```js
+// Simple effect.
+// watchEffect 的创建方式
+function watchEffect(
+  effect,
+  options
+) {
+  return doWatch(effect, null, options)
+}
+
+// watch 的创建方式
+function watch (source, cb, options) {
+  if (__DEV__ && !isFunction(cb)) {
+    warn(
+      `\`watch(fn, options?)\` signature has been moved to a separate API. ` +
+        `Use \`watchEffect(fn, options?)\` instead. \`watch\` now only ` +
+        `supports \`watch(source, cb, options?) signature.`
+    )
+  }
+  return doWatch(source, cb, options)
+}
 // 真正的watch函数
 function doWatch(
   source,
@@ -509,7 +536,16 @@ function doWatch(
   /**
   *  省略部分代码...
   */ 
+      
+  let cleanup 
 
+  // 定义失效时需要传参的函数
+  let onInvalidate = (fn) => {
+    // 用于执行用户传进来的fn函数
+    cleanup = runner.options.onStop = () => {
+      callWithErrorHandling(fn, instance, ErrorCodes.WATCH_CLEANUP)
+    }
+  }
   let oldValue = isMultiSource ? [] : INITIAL_WATCHER_VALUE
 
   // 定义任务队列中的任务
@@ -520,7 +556,7 @@ function doWatch(
       return
     }
     if (cb) {
-      // watch(source, cb)
+      // 🚩🚩🚩watch(source, cb)
       // runner执行就是在执行getter函数，获取newValue
       const newValue = runner()
       if (
@@ -536,8 +572,6 @@ function doWatch(
           isCompatEnabled(DeprecationTypes.WATCH_ARRAY, instance))
       ) {
           
-        // watch API的处理方式
-        // cleanup before running cb again
         if (cleanup) {
           cleanup()
         }
@@ -556,6 +590,7 @@ function doWatch(
       }
     } else {
         
+      // 🚩🚩🚩watchEffect(effect)
       // watchEffect
       // watchEffect API的处理方式，直接执行runner
       runner()
@@ -571,7 +606,99 @@ function doWatch(
 }
 ```
 
+通过上面代码，可以知道：
 
+- 对于watchEffect，执行job，就是在直接执行runner函数
+
+- 对于watch，首先需要通过runner获取新的value，并将新旧值传给callback函数。
+
+#### watch是如何进行深度或者立即侦听响应的？
+
+这里就很简单了，直接上代码：
+
+```js
+// 真正的watch函数
+function doWatch(
+  source,
+  cb,
+  { immediate, deep, flush, onTrack, onTrigger } = EMPTY_OBJ,
+  instance = currentInstance
+) {
+  /**
+  *  省略部分代码...
+  */ 
+  // 👉深度侦听
+  if (cb && deep) {
+    // 深度侦听，则递归遍历getter函数返回的值
+    const baseGetter = getter
+    getter = () => traverse(baseGetter())
+  }
+
+ /**
+  *  省略部分代码...
+  */ 
+
+  // initial run
+  if (cb) {
+     // 👉立即响应侦听
+    if (immediate) {
+      // 立即执行
+      // 即进行track & trigger
+      job()
+    } else {
+      oldValue = runner()
+    }
+  } else if (flush === 'post') {
+    queuePostRenderEffect(runner, instance && instance.suspense)
+  } else {
+    runner()
+  }
+ 
+ /**
+  *  省略部分代码...
+  */ 
+}
+
+```
+
+#### 如何做Vue2的兼容处理
+
+```js
+// 真正的watch函数
+function doWatch(
+  source,
+  cb,
+  { immediate, deep, flush, onTrack, onTrigger } = EMPTY_OBJ,
+  instance = currentInstance
+) {
+  
+  /**
+  *  省略部分代码...
+  */ 
+ 
+  // 2.x array mutation watch compat
+  // Vue2做兼容处理
+  if (__COMPAT__ && cb && !deep) {
+    const baseGetter = getter
+    getter = () => {
+      const val = baseGetter()
+      if (
+        isArray(val) &&
+        checkCompatEnabled(DeprecationTypes.WATCH_ARRAY, instance)
+      ) {
+        traverse(val)
+      }
+      return val
+    }
+  }
+  
+ /**
+  *  省略部分代码...
+  */ 
+}
+```
+
+最后让我们看下完整的watch相关部分的代码：
 
 ```typescript
 // 简单的 watch effect.
@@ -920,7 +1047,7 @@ export function instanceWatch(
   return doWatch(getter, cb.bind(publicThis), options, this)
 }
 
-// 获取侦测路径
+// 获取侦听路径
 export function createPathGetter(ctx: any, path: string) {
   const segments = path.split('.')
   return () => {
