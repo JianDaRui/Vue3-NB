@@ -1,5 +1,11 @@
 # 第二篇 RunTimeCore——computed & watch源码分析
 
+大家好，我是剑大瑞。
+
+这边文章主要分析Vue3中watch API的实现原理，希望对你有所帮助。
+
+![](D:\vue3深入浅出\docs\.vuepress\public\img\runtime-core\watch文章结构.png)
+
 ## `computed` API
 
 在上篇文章中我们分析了`computed`的原理。在runtime core中，有对`computed`做了一层处理，主要是记录当前实例的`computed Effect`至`instance.effects`。方便组件卸载的时候，清空依赖。
@@ -409,6 +415,44 @@ function doWatch(
 
 再结合上面分析停止侦听的代码，可以知道，当`runner`函数执行的时候，就是执行`getter`获取数据源新值的时候。
 
+深度侦听函数：
+
+- 是一个深度递归遍历函数
+- 通过seen函数判断循环引用的情况
+- 最终返回的是原始类型数据
+
+```js
+// 👉👉👉 递归遍历获取值，seen用于防止陷入死循环
+function traverse(value, seen = new Set()) {
+  if (
+    !isObject(value) ||
+    seen.has(value) ||
+    (value)[ReactiveFlags.SKIP]
+  ) {
+    return value
+  }
+    
+  seen.add(value)
+    
+  if (isRef(value)) {
+    traverse(value.value, seen)
+  } else if (isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      traverse(value[i], seen)
+    }
+  } else if (isSet(value) || isMap(value)) {
+    value.forEach((v: any) => {
+      traverse(v, seen)
+    })
+  } else if (isPlainObject(value)) {
+    for (const key in value) {
+      traverse((value)[key], seen)
+    }
+  }
+  return value
+}
+```
+
 
 
 #### watchEffect是如何进行函数缓存 & 异步进行刷新的?
@@ -616,6 +660,10 @@ function doWatch(
 
 这里就很简单了，直接上代码：
 
+深度侦听就是去遍历递归原来的getter函数
+
+立即侦听即直接执行job函数，触发runner，并执行callback。
+
 ```js
 // 真正的watch函数
 function doWatch(
@@ -698,6 +746,14 @@ function doWatch(
 }
 ```
 
+## 总结
+
+​        通过上面的分析，我们现在掌握了两个源码级别的Effect，一个是computed Effect，一个是watch Effect。watch能对数据源进行响应式侦听。主要是通过将数据源转化为getter函数。并通过effect建立watch Effect与相关依赖之间的关系。当数据源发生变化的时候，回触发Trigger，进行响应派发，遍历执行所有相关的effect。当effect。scheduler存在时，就会执行scheduler函数，而watch内部通过scheduler，对job任务进行了缓存，并放在一个待执行队列中，在update前，会通过promise异步执行job任务。job执行，就会获取数据源变化后的值，并将新旧value传给用户创建watch时的回调函数。完成侦听任务。
+
+> 不要忘记，在job中获取新值也会触发Track任务。
+
+![watch](D:\vue3深入浅出\docs\.vuepress\public\img\runtime-core\watch.png)
+
 最后让我们看下完整的`watch`相关部分的代码：
 
 ```typescript
@@ -708,7 +764,7 @@ export function watchEffect(
 ): WatchStopHandle {
   return doWatch(effect, null, options)
 }
-// 👉👉👉进行重载，侦听多个数据源 & cb
+// 👉👉👉 进行重载，侦听多个数据源 & cb
 export function watch<
   T extends MultiWatchSources,
   Immediate extends Readonly<boolean> = false
@@ -718,7 +774,7 @@ export function watch<
   options?: WatchOptions<Immediate>
 ): WatchStopHandle
 
-// 👉👉👉重载：侦听多个数据源，并且数据源是只读的
+// 👉👉👉 重载：侦听多个数据源，并且数据源是只读的
 export function watch<
   T extends Readonly<MultiWatchSources>,
   Immediate extends Readonly<boolean> = false
@@ -728,14 +784,14 @@ export function watch<
   options?: WatchOptions<Immediate>
 ): WatchStopHandle
 
-// 👉👉👉重载：简单watch Effect & cb
+// 👉👉👉 重载：简单watch Effect & cb
 export function watch<T, Immediate extends Readonly<boolean> = false>(
   source: WatchSource<T>,
   cb: WatchCallback<T, Immediate extends true ? (T | undefined) : T>,
   options?: WatchOptions<Immediate>
 ): WatchStopHandle
 
-// 👉👉👉重载：侦听响应式对象 & cb
+// 👉👉👉 重载：侦听响应式对象 & cb
 export function watch<
   T extends object,
   Immediate extends Readonly<boolean> = false
@@ -745,7 +801,7 @@ export function watch<
   options?: WatchOptions<Immediate>
 ): WatchStopHandle
 
-// 👉👉👉执行创建 watch
+// 👉👉👉 执行创建 watch
 export function watch<T = any, Immediate extends Readonly<boolean> = false>(
   source: T | WatchSource<T>,
   cb: any,
@@ -764,7 +820,7 @@ function doWatch(
   { immediate, deep, flush, onTrack, onTrigger }: WatchOptions = EMPTY_OBJ,
   instance = currentInstance
 ): WatchStopHandle {
-  // 👉👉👉dev环境下判断 immediate, deep
+  // 👉👉👉 dev环境下判断 immediate, deep
   if (__DEV__ && !cb) {
     if (immediate !== undefined) {
       warn(
@@ -779,7 +835,7 @@ function doWatch(
       )
     }
   }
-  // 👉👉👉校验数据源
+  // 👉👉👉 校验数据源
   const warnInvalidSource = (s: unknown) => {
     warn(
       `Invalid watch source: `,
@@ -799,12 +855,13 @@ function doWatch(
     getter = () => source.value
     forceTrigger = !!source._shallow
   } else if (isReactive(source)) {
-    // 👉👉👉源是响应式对象
-    // 👉👉👉自动进行深度侦听
+      
+    // 👉👉👉 源是响应式对象，自动进行深度侦听
     getter = () => source
     deep = true
   } else if (isArray(source)) {
-    // 👉👉👉侦听多个源
+      
+    // 👉👉👉 侦听多个源，遍历递归侦听
     isMultiSource = true
     forceTrigger = source.some(isReactive)
     getter = () =>
@@ -824,14 +881,14 @@ function doWatch(
         }
       })
   } else if (isFunction(source)) {
-    // 👉👉👉数据源是函数
+    // 👉👉👉 数据源是函数
     if (cb) {
       // getter with cb
       getter = () =>
         callWithErrorHandling(source, instance, ErrorCodes.WATCH_GETTER)
     } else {
       // no cb -> simple effect
-      // 没有传回调函数的情况
+      // 没有传回调函数的情况，watchEffect
       getter = () => {
         if (instance && instance.isUnmounted) {
           return
@@ -853,8 +910,7 @@ function doWatch(
   }
   /* End: 定义getter函数结束 */
 
-  // 2.x array mutation watch compat
-  // Vue2做兼容处理
+  // 👉👉👉 Vue2做兼容处理
   if (__COMPAT__ && cb && !deep) {
     const baseGetter = getter
     getter = () => {
@@ -877,14 +933,14 @@ function doWatch(
 
   let cleanup: () => void
 
-  // 👉👉👉定义失效时需要传参的函数
+  // 👉👉👉 定义失效时需要传参的函数
   let onInvalidate: InvalidateCbRegistrator = (fn: () => void) => {
     cleanup = runner.options.onStop = () => {
       callWithErrorHandling(fn, instance, ErrorCodes.WATCH_CLEANUP)
     }
   }
 
-  // 服务端渲染的情况下，不必创建一个真正的effect， onInvalidate 应该为一个空对象，
+  // 👉👉👉 服务端渲染的情况下，不必创建一个真正的effect， onInvalidate 应该为一个空对象，
   // 触发 immediate 为true
   if (__NODE_JS__ && isInSSRComponentSetup) {
     // we will also not call the invalidate callback (+ runner is not set up)
@@ -903,9 +959,7 @@ function doWatch(
 
   let oldValue = isMultiSource ? [] : INITIAL_WATCHER_VALUE
 
-  // 👉👉👉👉👉👉定义任务队列中的任务
-  // 👉👉👉用于执行runner函数
-  // 👉👉👉执行的过程会进行track & trigger
+  // 👉👉👉 定义任务队列中的任务，用于执行runner函数，执行的过程会进行track & trigger
   const job: SchedulerJob = () => {
     if (!runner.active) {
       return
@@ -950,7 +1004,7 @@ function doWatch(
     }
   }
 
-  // 👉👉👉将job标记为一个可以侦测的回调函数，以便调度器知道他可以自动进行响应触发（trigger）
+  // 👉👉👉 将job标记为一个可以侦测的回调函数，以便调度器知道他可以自动进行响应触发（trigger）
   job.allowRecurse = !!cb
       
   // 👉👉👉
@@ -982,9 +1036,7 @@ function doWatch(
     }
   }
 
-  // 👉👉👉定义runner
-  // 👉👉👉watch 级别的effect
-  // 👉👉👉runner执行，即执行getter函数
+  // 👉👉👉 定义runner， watch 级别的effect，runner执行，即执行getter函数
   const runner = effect(getter, {
     lazy: true,
     onTrack,
@@ -992,15 +1044,13 @@ function doWatch(
     scheduler
   })
   
-  // 👉👉👉将watch effect 存至instance.effects
-  // 👉👉👉当组件卸载的时候会清空当前runner与依赖之间的关系
+  // 👉👉👉将watch effect 存至instance.effects，当组件卸载的时候会清空当前runner与依赖之间的关系
   recordInstanceBoundEffect(runner, instance)
 
   // 👉👉👉initial run
   if (cb) {
     if (immediate) {
-      // 👉👉👉立即执行
-      // 👉👉👉即进行track & trigger
+      // 👉👉👉立即执行，即进行track & trigger
       job()
     } else {
       oldValue = runner()
@@ -1011,9 +1061,7 @@ function doWatch(
     runner()
   }
 
-  // 👉👉👉返回一个stop函数
-  // 👉👉👉用于断开runner与其他依赖之间的关系
-  // 👉👉👉并将其将从instance.effects中移除
+  // 👉👉👉返回一个stop函数，用于断开runner与其他依赖之间的关系，并将其将从instance.effects中移除
   return () => {
     stop(runner)
     // 
@@ -1023,8 +1071,7 @@ function doWatch(
   }
 }
 
-// 👉👉👉 this.$watch
-// 👉👉👉 组件实例上的watch API
+// 👉👉👉 this.$watch，组件实例上的watch API
 export function instanceWatch(
   this: ComponentInternalInstance,
   source: string | Function,
@@ -1060,8 +1107,7 @@ export function createPathGetter(ctx: any, path: string) {
   }
 }
 
-// 👉👉👉 递归遍历获取值
-// 👉👉👉 seen用于防止陷入死循环
+// 👉👉👉 递归遍历获取值，seen用于防止陷入死循环
 function traverse(value: unknown, seen: Set<unknown> = new Set()) {
   if (
     !isObject(value) ||
@@ -1089,6 +1135,16 @@ function traverse(value: unknown, seen: Set<unknown> = new Set()) {
   return value
 }
 
-
 ```
+
+> 如果文章中有错误之处，还望大佬批评指正。
+>
+> 如果文章对你有所帮助，可以点个赞。
+>
+> 感谢阅读。
+
+参考：
+
+- [Vue官网](https://v3.cn.vuejs.org/guide/reactivity-computed-watchers.html#%E5%81%9C%E6%AD%A2%E4%BE%A6%E5%90%AC)
+- [Vue-next](https://github.com/vuejs/vue-next)
 
