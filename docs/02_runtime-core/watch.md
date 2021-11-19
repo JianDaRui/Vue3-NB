@@ -2,18 +2,24 @@
 
 大家好，我是剑大瑞。
 
-这边文章主要分析Vue3中watch API的实现原理，希望对你有所帮助。
+这边文章主要分析Vue3中`watch API`的使用 & 实现原理，希望文中的内容对你有所帮助。
+
+如果有错误之处还望指正。我会非常感谢你的。
+
+如果没有对Vue3的响应式原理不熟悉，建议先阅读第一篇[Vue3 reactivity 源码解析](https://juejin.cn/post/7025420444383576072)。
+
+
 
 ![](D:\vue3深入浅出\docs\.vuepress\public\img\runtime-core\watch文章结构.png)
 
 ## `computed` API
 
-在上篇文章中我们分析了`computed`的原理。在runtime core中，有对`computed`做了一层处理，主要是记录当前实例的`computed Effect`至`instance.effects`。方便组件卸载的时候，清空依赖。
+在上篇文章中我们分析了`computed`的原理。在`runtime core`中，有对`computed`做了一层处理，主要是记录当前实例的`computed Effect`至`instance.effects`。方便组件卸载的时候，清空依赖。
 
-这里的代码较为简单，我们一起简单看下。
+`runtime core`中的代码较为简单，我们一起简单看下。
 
 - 记录组件创建阶段的 `computed Effect `至` instance.effects`，方便组件卸载的时候，移除当前实例的 `computed effect`
-- 我们使用的`computed` API就是经过runtime core处理过的`computed`
+- 我们使用的`computed` API就是经过`runtime core`处理过的`computed`
 
 ```typescript
 import {
@@ -49,7 +55,7 @@ Vue3中新增了一个响应式函数：`watchEffect`。在分析`watch & watchE
 
 - `watchEffect`可以根据响应数据状态的变化，自动或者重新执行传入的副作用函数。
 
-- 他接受一个回调函数，并在创建的时候立即执行，同时对齐进行响应式依赖追踪。
+- 他接受一个回调函数，并在创建的时候立即执行，[同时对齐进行响应式依赖追踪](https://juejin.cn/post/7025420444383576072)。
 - 即建立当前传入的回调函数与所有相关`effect`的依赖关系。
 - 并在依赖变化的时候重新运行该回调函数。
 - 并会返回一个`stop`函数，用来停止侦听，即断开当前`watchEffect`与其所有依赖的`effect`之间的关系
@@ -91,7 +97,7 @@ onUnmounted(() => {
 })
 ```
 
-为了提高刷新效率，Vue的响应式系统会缓存并异步处理所有`watchEffect`副作用函数，以避免同一个“tick” 中多个状态改变导致的不必要的重复调用。
+为了提高刷新效率，Vue的响应式系统会缓存并异步处理所有`watchEffect`副作用函数，以避免同一个“`tick`” 中多个状态改变导致的不必要的重复调用。
 
 > 关于如何缓存并异步处理，稍后源码中进行解析
 
@@ -216,7 +222,7 @@ watch(
 state.attributes.name = 'Alex' // 日志: "deep" "Alex" "Alex"
 ```
 
-> 这里需要说下 【副作用】、【依赖】都是我们上一篇文章中提到的effet。
+> 这里需要说下 【副作用】、【依赖】都是我们上一篇文章中提到的`effet`。
 >
 > 比较关键的是，我们这里接触的是Vue源码中的第二个级别的`effect`，第一个是`compute Effect`。这次要说的是`watch Effect`。
 
@@ -308,7 +314,7 @@ function doWatch(
 
 当`watch`侦听的数据源发生变化的时候就会执行`callback`。这就是前面我们说的响应式。
 
-在使用`watch`时，`doWatch`回创建一个 getter函数，用于确定数据源与`callback`之间的关系。
+在使用`watch`时，`doWatch`会创建一个 `getter`函数，用于确定数据源与`callback`之间的关系。
 
 `getter`函数用于获取数据源的更新后的值。当`getter`函数执行的时候，就会触发依赖收集。
 
@@ -467,7 +473,7 @@ function traverse(value, seen = new Set()) {
 
 答案是通过给`watch Effect` 配置**`scheduler`**属性。
 
-当进行响应派发的时候，回触发`trigger`函数，`trigger`函数最终会遍历执行所有相关`effect`。
+当进行响应派发的时候，会触发`trigger`函数，`trigger`函数最终会遍历执行所有相关`effect`。
 
 在执行`effect`的过程中会判断`effect.scheduler`是否存在，如果存在就会执行`scheduler`函数。
 
@@ -528,11 +534,11 @@ function doWatch(
 }
 ```
 
-通过上面的代码，我们简单分析scheduler的创建过程：
+通过上面的代码，我们简单分析`scheduler`的创建过程：
 
-- 主要与创建watch时配置的flush有关
-- 在默认下情况下scheduler内部通过queuePreFlushCb将job缓存在待执行队列中，并通过Promise.resolve异步更新队列从而避免不必要的重复调用
-- 通过Promise创建微任务。在update之前执行所有的副作用函数，等于是提高了副作用函数的优先级
+- 主要与创建`watch`时配置的flush有关
+- 在默认下情况下`scheduler`内部通过`queuePreFlushCb`将job缓存在待执行队列中，并通过`Promise.resolve`异步更新队列从而避免不必要的重复调用
+- 通过`Promise`创建微任务。在`update`之前执行所有的副作用函数，等于是提高了副作用函数的优先级
 
 >这里我们先知道`watchEffect`是通过`queuePreFlushCb`做到的副作用函数缓存 & 异步批量更新。在后续的文章中会分析`scheduler.ts`部分的内容。到时候就会明白其作用。
 >
@@ -544,7 +550,7 @@ function doWatch(
 
 - 通过判断`callback`，对`watch` 与 `watchEffect`进行判断
 - 通过执行`runner`获取新值
-- 通过`callWithAsyncErrorHandling`对回调函数进行异步处理，并将新旧值传给`callback`，这也是我们为什么可以在`watch`中拿到侦听数据源，变化前后value的原因。
+- 通过`callWithAsyncErrorHandling`对callback函数进行异步处理，并将新旧值传给`callback`，这也是我们为什么可以在`watch`中拿到侦听数据源，变化前后value的原因。
 
 下面一起看下`job`部分的代码实现：
 
@@ -660,9 +666,9 @@ function doWatch(
 
 这里就很简单了，直接上代码：
 
-深度侦听就是去遍历递归原来的getter函数
+深度侦听就是去遍历递归原来的`getter`函数
 
-立即侦听即直接执行job函数，触发runner，并执行callback。
+立即侦听即直接执行`job`函数，触发`runner`，并执行`callback`。
 
 ```js
 // 真正的watch函数
@@ -711,6 +717,8 @@ function doWatch(
 
 #### 如何做Vue2的兼容处理
 
+Vue3在`doWatch`函数中，还做了一层Vue2的兼容处理，主要是通过对`getter`函数进行了一层重载，并对`getter`函数返回的`value`进行了深度递归遍历。
+
 ```js
 // 真正的watch函数
 function doWatch(
@@ -748,11 +756,24 @@ function doWatch(
 
 ## 总结
 
-​        通过上面的分析，我们现在掌握了两个源码级别的Effect，一个是computed Effect，一个是watch Effect。watch能对数据源进行响应式侦听。主要是通过将数据源转化为getter函数。并通过effect建立watch Effect与相关依赖之间的关系。当数据源发生变化的时候，回触发Trigger，进行响应派发，遍历执行所有相关的effect。当effect。scheduler存在时，就会执行scheduler函数，而watch内部通过scheduler，对job任务进行了缓存，并放在一个待执行队列中，在update前，会通过promise异步执行job任务。job执行，就会获取数据源变化后的值，并将新旧value传给用户创建watch时的回调函数。完成侦听任务。
+- 通过上面的分析，我们现在掌握了两个源码级别的`Effect`，一个是`computed Effect`，一个是`watch Effect`。
+- `watch`能对数据源进行响应式侦听。主要是通过将数据源转化为`getter`函数。
+- 并通过`effect`建立`watch Effect`与相关依赖之间的关系。
+- 当数据源发生变化的时候，会触发`Trigger`，进行响应派发，遍历执行所有相关的`effect`。
+- 当`effect.scheduler`存在时，就会执行`scheduler`函数，而`watch`内部通过`scheduler`，对`job`任务进行了缓存，并放在一个待执行队列中，在`update`前，会通过`promise`异步执行`job`任务。
+- `job`执行，就会获取数据源变化后的值，并将新旧`value`传给用户创建`watch`时的回调函数。完成侦听任务。
 
-> 不要忘记，在job中获取新值也会触发Track任务。
+> 不要忘记，在job中获取新值也会触发`Track`任务。
 
-![watch](D:\vue3深入浅出\docs\.vuepress\public\img\runtime-core\watch.png)
+![watch](D:\vue3深入浅出\docs\.vuepress\public\img\runtime-core\watch (2).png)
+
+
+
+
+
+
+
+
 
 最后让我们看下完整的`watch`相关部分的代码：
 
@@ -1137,9 +1158,11 @@ function traverse(value: unknown, seen: Set<unknown> = new Set()) {
 
 ```
 
-> 如果文章中有错误之处，还望大佬批评指正。
+> 如果文章中有错误之处，还望大佬们批评指正。
 >
-> 如果文章对你有所帮助，可以点个赞。
+> 如果喜欢我的文章，可以关注 + 点赞。
+>
+> 如果需要持续了解Vue3源码分析系列，可关注我公共号【coder狂想曲】。在这里我们一起精进！年年double！
 >
 > 感谢阅读。
 
