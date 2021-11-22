@@ -106,7 +106,7 @@ function queueFlush() {
 
 ```js
 function flushJobs(seen?: CountMap) {
-  // 👉 等待刷新结束第三方，开始刷新
+  // 👉 等待刷新结束，开始刷新
   isFlushPending = false
   isFlushing = true
   if (__DEV__) {
