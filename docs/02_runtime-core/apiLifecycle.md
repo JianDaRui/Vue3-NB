@@ -50,7 +50,7 @@ const app = createApp({
   },
   renderTracked({ key, target, type }) {
     console.log({ key, target, type })
-    /* 当组件第一次渲染时，这将被记录下来:
+    /* 👉当组件第一次渲染时，这将被记录下来:
     {
       key: "cart",
       target: {
@@ -66,7 +66,7 @@ const app = createApp({
   methods: {
     addToCart() {
       this.cart += 1
-      /* 这将导致 renderTriggered 被调用
+      /* 👉这将导致 renderTriggered 被调用
         {
           key: "cart",
           target: {
@@ -103,7 +103,7 @@ app.mount('#app')
 `Vue3`中各生命周期函数主要通过`createHook`函数创建。`createHook`函数是一个高阶函数。
 
 ```js
-// keep-alive组件的生命周期
+// 👉 keep-alive组件的生命周期
 export { onActivated, onDeactivated } from './components/KeepAlive'
 
 export const onBeforeMount = createHook(LifecycleHooks.BEFORE_MOUNT)
@@ -131,53 +131,53 @@ export const createHook = (
       injectHook(lifecycle, hook, target)
 ```
 
-`createHook`函数主要是接受一个生命周期类型`type`，再返回`injectHook`函数去接受用户创建`hook`，第二个参数`target`默认是当前组件。
+`createHook`函数就是一个高阶函数，用过参数type，创建不同的生命周期钩子，主要是通过返回的`injectHook`函数去接受用户创建`hook`，第二个参数`target`默认是当前组件。
 
 `injectHook`代码：
 
 ```js
 function injectHook(type, hook, target = currentInstance, prepend = false) {
       if (target) {
-          // 获取target(实例)上的type类型的钩子函数
-          // 可以是多个，如果是多个，则是数组类型
+          // 👉获取target(实例)上的type类型的钩子函数
+          // 👉可以是多个，如果是多个，则是数组类型
           const hooks = target[type] || (target[type] = []);
           // cache the error handling wrapper for injected hooks so the same hook
           // can be properly deduped by the scheduler. "__weh" stands for "with error
           // handling".
-          // 对注册的钩子函数进行一层负责错误处理的包裹
+          // 👉对注册的钩子函数进行一层负责错误处理的包裹
           const wrappedHook = hook.__weh ||
               (hook.__weh = (...args) => {
                   if (target.isUnmounted) {
                       return;
                   }
                   
-                  // 禁用所有生命周期挂钩内部的跟踪，因为它们可能被内部副作用调用。
-                  // 比如在生命周期中进行状态的访问和修改。
+                  // 👉禁用所有生命周期挂钩内部的跟踪，因为它们可能被内部副作用调用。
+                  // 👉比如在生命周期中进行状态的访问和修改。
                   pauseTracking();
-                  // 在钩子调用期间设置currentInstance。
+                  // 👉在钩子调用期间设置currentInstance。
                
-                  // 设置当前渲染实例
+                  // 👉设置当前渲染实例
                   setCurrentInstance(target);
                   // callWithAsyncErrorHandling函数负责调用hook，如果执行过程出错会进行警告
                   const res = callWithAsyncErrorHandling(hook, target, type, args);
-                  // 钩子执行结束，重置当前实例
+                  // 👉钩子执行结束，重置当前实例
                   setCurrentInstance(null);
-                  // 重置Track
+                  // 👉重置Track
                   resetTracking();
-                  // 返回结果
+                  // 👉返回结果
                   return res;
               });
-          // 往hooks中添加包裹后的钩子函数
-          // 注意：此次更改hooks，对应的target[type]也会发生更改。
+          // 👉往hooks中添加包裹后的钩子函数
+          // 👉注意：此次更改hooks，对应的target[type]也会发生更改。
           if (prepend) {
               hooks.unshift(wrappedHook);
           } else {
               hooks.push(wrappedHook);
           }
-          // 返回经过包裹的钩子函数
+          // 👉返回经过包裹的钩子函数
           return wrappedHook;
       } else {
-          // 错误处理
+          // 👉错误处理
           const apiName = toHandlerKey(ErrorTypeStrings[type].replace(/ hook$/, ''));
           warn('省略...');
       }
