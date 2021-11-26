@@ -6,6 +6,8 @@
 
 本篇主要内容有`provide / inject`的使用方法，及其实现原理。
 
+文章共计1600字，读完只需三分钟。
+
 ## 回顾
 
 - 在`Vue`中当需要面临祖孙组件通信的问题时，我们可以使用`provide / inject API`
@@ -125,6 +127,8 @@
 
 在调用`inject API`的组件中其实主要是通过访问当前组件的`provides`属性，再返回当前`key`对应的`value`即可。
 
+### `provide API`
+
 下面我们一起分析下`provide API`的源码：
 
 ```js
@@ -166,6 +170,8 @@ export function provide(key, value) {
 - 获取当前组件的`provides`对象 & 父组件的`parentProvides`对象
 - 主要是为了让`provides`对象继承`parentProvides`对象，做了一个原型继承操作
 - 直接给`provides`对象赋值，这时实例上就有了相应的`key: value`
+
+### `Inject API`
 
 趁热打铁，分析下`inject`的源码：
 
@@ -210,17 +216,17 @@ export function inject( key, defaultValue, treatDefaultAsFactory = false ) {
 }
 ```
 
-上面inject API的代码也很简单，主要一下几件事：
+上面`inject API`的代码也很简单，主要以下几件事：
 
 - 获取当前实例
-- 获取当前实例父组件的provides对象，如果父组件不存在，则获取自身的provides对象
-- 根据参数情况，返回key所对应的value
+- 获取当前实例父组件的provides对象，如果父组件不存在，则获取自身的`provides`对象
+- 根据参数情况，返回key所对应的`value`
 
 ## 总结
 
-没有阅读源码之前，我刚开始以为，Vue会在inject组件中，一直会向上查找，通过递归获取provide组件中的依赖。阅读之后，发现我还是想的复杂了，Vue直接将provide的依赖，挂载在了每一个子孙组件的provides对象上，在inject组件中，直接通过获取父组件或者自身的provides对象上的依赖并返回即可。
+没有阅读源码之前，我刚开始以为，`Vue`会在`inject`组件中，一直会向上查找，通过递归获取`provide`组件中的依赖。
 
-另本文中并没有提及，
+阅读之后，发现我还是想的复杂了，`Vue`直接将`provide`的依赖，层层挂载在了每一个子孙组件的`provides`对象上，在`inject`组件中，直接通过获取父组件或者自身的`provides`对象上的依赖并返回即可。
 
 参考文献：
 
