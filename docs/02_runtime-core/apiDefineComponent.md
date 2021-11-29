@@ -360,7 +360,22 @@ function defineAsyncComponent(source) {
 - 在`load`函数外部，定义了重载次数`retries`，和负责重载的`retry`函数
 - `retry`函数会对`retries`进行累加 & 重置`pendingRequest` & 执行`load`函数进行重载。
 
+调用`defineComponent API`，返回异步组件包裹组件。
 
+- 定义存取器函数 get函数，用于获取异步组件结果
+- 在`setup`函数中主要做了几件事：
+  - 获取当前实例
+  - 如果已经加载结束，返回一个创建异步组件`Vnode`的工厂函数
+  - 定义`onError`函数，用于处理加载异常情况
+  - 如果时悬挂控制或者`SSR`渲染时
+    - 调用`load`函数，返回异步组件的`Vnode`
+  - 定义`loaded`变量，用于记录加载状态
+  - 定义`err`变量，用于记录错误异常
+  - 定义`delayed`，用于判断延迟时间是否结束
+  - 通过`setTimeout`，创建宏任务，来判断延迟与超时
+    - 执行`load`函数，重置`loaded`状态，创建强制父组件更新任务
+  - 读过[`RunTimeCore——scheduler`源码分析](https://juejin.cn/post/7033203252850245669)的同学肯定对`queueJob`不陌生
+  - 
 
 ```js
 function defineAsyncComponent(source) {
@@ -387,7 +402,7 @@ function defineAsyncComponent(source) {
         return () => createInnerComp(resolvedComp!, instance)
       }
         
-      // 👉发生错误时的处理方式
+      // 👉定义onError函数，发生错误时的处理方式
       const onError = (err) => {
         pendingRequest = null
         handleError(
@@ -426,16 +441,16 @@ function defineAsyncComponent(source) {
       const delayed = ref(!!delay)
 
       if (delay) {
-        // 👉延迟加载
+        // 👉处理延迟加载
         setTimeout(() => {
           delayed.value = false
         }, delay)
       }
-
+      
       if (timeout != null) {
+        // 👉处理加载超时
         setTimeout(() => {
           if (!loaded.value && !error.value) {
-            // 👉加载超时
             const err = new Error(
               `Async component timed out after ${timeout}ms.`
             )
