@@ -133,7 +133,7 @@ createApp({
   - `loadingComponent`函数用于加载在***加载异步组件时***的组件
   - `errorComponent`函数用于加载失败时要使用的组件
   - `delay`属性用于在显示`loadingComponent`的延迟
-  - `timeout`属性用于设定加载超时实践，超时则会显示错误组件
+  - `timeout`属性用于设定加载超时时间，超时则会显示错误组件
   - `suspensible`属性用于定义组件是否可挂起
   - `onError`函数，会接受`Vue`内部传出的几个参数：`error`, `retry`, `fail`, `attempts`用于发生错误时，将错误信息交给用户处理判断。
 
@@ -353,7 +353,7 @@ function defineAsyncComponent(source) {
 }
 ```
 
-可以看出在`catch`中，但`userOnError`存在时：
+可以看出在`catch`中，当`userOnError`存在时：
 
 - 会返回一个`Promise`实例
 - `Promise`实例会调用`userOnError`函数，并将当前错误信息、重载函数、退出函数、重载次数传给`userOnError`函数
@@ -497,7 +497,7 @@ function createInnerComp(
   // ensure inner component inherits the async wrapper's ref owner
   // 确保内部组件继承异步包裹自己的 ref
   // 原因：因为在我们在使用的defineAsyncComponent导出组件的时候，其实引入的是经过包裹的异步组件，
-  // 但需要ref引用组件的时候，我们真是需要引入的是加载完成的组件，故需要将包裹组件的ref传给异步加载完成的组件
+  // 但需要ref引用组件的时候，我们真正需要引入的是加载完成的组件，故需要将包裹组件的ref传给异步加载完成的组件
   vnode.ref = ref
   return vnode
 }
@@ -733,6 +733,7 @@ function createInnerComp(
   comp,
   { vnode: { ref, props, children } }
 ) {
+  // createVNode函数用于创建组件Vnode
   const vnode = createVNode(comp, props, children)
   // ensure inner component inherits the async wrapper's ref owner
   // 确保内部组件继承异步包裹自己的 ref 
