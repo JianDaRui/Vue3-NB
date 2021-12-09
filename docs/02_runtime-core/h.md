@@ -112,8 +112,6 @@ export function h(type, propsOrChildren, children) {
 
 ```
 
-
-
 ## createVNode
 
 createVNode 其实还是调用的_createVNode，这里暂时不用关注vnodeArgsTransformer
@@ -131,8 +129,6 @@ const createVNodeWithArgsTransform = (...args) => {
 
 
 ```
-
-
 
 ## _createVNode
 
@@ -288,7 +284,7 @@ function _createVNode(
 
 
 
-
+## cloneVNode
 
 ```js
 export function cloneVNode(
@@ -441,8 +437,11 @@ export function normalizeChildren(vnode, children) {
 export function isClassComponent(value) {
   return isFunction(value) && '__vccOpts' in value
 }
-
 ```
+
+
+
+## convertLegacyComponent
 
 ```ts
 // 兼容处理
