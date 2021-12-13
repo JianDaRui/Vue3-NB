@@ -1,69 +1,58 @@
-# 第六篇 `Vue3 RunTimeCore`——高阶 API 源码分析
+# 第六篇 `Vue3 RunTimeCore`——高阶 `API` 
 
-## h()
+## 渲染函数`h()`的使用
 
-用于创建Vnode，是createVnode的语法糖
+## 渲染函数`h()`源码分析
 
-Vnode就是一个虚拟节点的普通JS对象，Vue会根据对象信息，渲染对应的节点。
+`Vnode`就是一个虚拟节点的普通`JS`对象，`Vue`会根据对象信息，渲染对应的节点。
 
-先看下Vnode有哪些信息：
+### `Vnode`描述对象
 
-- __v_isVNode: *true*，内部属性，有该属性表示为Vnode
+先看下`Vnode`有哪些信息：
 
-- __v_skip: true，内部属性，表示跳过响应式转换，reactive转换时会根据此属性进行判断
-
-- isCompatRoot?: *true*，用于是否做了兼容处理的判断
-
-- type: VNodeTypes，虚拟节点的类型
-
-- props: (VNodeProps & ExtraProps) | *null*，虚拟节点的props
-
-- key: *string* | *number* | *null*，虚拟阶段的key，可用于diff
-
-- ref: VNodeNormalizedRef | *null*，虚拟阶段的引用
-
-- scopeId: *string* | *null*，仅限于SFC(单文件组件)，在设置currentRenderingInstance当前渲染实例时，一期设置
-
-- slotScopeIds: *string*[] | *null*，仅限于单文件组件，与单文件组件的插槽有关
-
-- children: VNodeNormalizedChildren，子节点
-
-- component: ComponentInternalInstance | *null*，组件实例
-
-- dirs: DirectiveBinding[] | *null*，当前Vnode绑定的指令
-
-- transition: TransitionHooks<HostElement> | *null*，TransitionHooks
-
-- DOM相关属性
-  - el: HostNode | *null*，宿主阶段
-  - anchor: HostNode | *null* // fragment anchor
-  - target: HostElement | *null* ，teleport target 传送的目标
-  - targetAnchor: HostNode | *null* // teleport target anchor
-  - staticCount: *number* ，包含的静态节点的数量
-
-- suspense 悬挂有关的属性
-
-  - suspense: SuspenseBoundary | *null*
-
-  - ssContent: VNode | *null*
-
-  - ssFallback: VNode | *null*
-
-- optimization only 用于优化的属性
-  - shapeFlag: *number*
-  - patchFlag: *number*
-  - dynamicProps: *string*[] | *null*
-  - dynamicChildren: VNode[] | *null*
-
+- `__v_isVNode: *true`*，内部属性，有该属性表示为`Vnode`
+- `__v_skip: true`，内部属性，表示跳过响应式转换，`reactive`转换时会根据此属性进行判断
+- `isCompatRoot?: *true*`，用于是否做了兼容处理的判断
+- `type: VNodeTypes`，虚拟节点的类型
+- `props: (VNodeProps & ExtraProps) | *null`*，虚拟节点的`props`
+- `key: *string* | *number* | *null*`，虚拟阶段的`key`，可用于`diff`
+- `ref: VNodeNormalizedRef | *null`*，虚拟阶段的引用
+- `scopeId: *string* | *null`*，仅限于`SFC`(单文件组件)，在设置`currentRenderingInstance`当前渲染实例时，一期设置
+- `slotScopeIds: *string*[] | *null*`，仅限于单文件组件，与单文件组件的插槽有关
+- `children: VNodeNormalizedChildren`，子节点
+- `component: ComponentInternalInstance | *null*`，组件实例
+- `dirs: DirectiveBinding[] | *null*`，当前Vnode绑定的指令
+- `transition: TransitionHooks<HostElement> | *null`*，`TransitionHooks`
+- `DOM`相关属性
+  - `el: HostNode | *null`*，宿主阶段
+  - `anchor: HostNode | *null* // fragment anchor`
+  - `target: HostElement | *null`* ，`teleport target` 传送的目标
+  - `targetAnchor: HostNode | *null* // teleport target anchor`
+  - `staticCount: *number* `，包含的静态节点的数量
+- `suspense` 悬挂有关的属性
+- `suspense: SuspenseBoundary | *null`*
+  
+- `ssContent: VNode | *null*`
+  
+- `ssFallback: VNode | *null`*
+- `optimization only` 用于优化的属性
+  - `shapeFlag: *number`*
+  - `patchFlag: *number`*
+  - `dynamicProps: *string*[] | *null*`
+  - `dynamicChildren: VNode[] | *null`*
 - 根节点会有的属性
-  - appContext: AppContext | *null*，实例上下文
+  - `appContext: AppContext | *null*`，实例上下文
 
+### `Vnode`类型
 
+`html`标签字符串
 
-在Vue中有哪些类型的虚拟阶段：
+`Vue`内部组件名称
+
+在`Vue`中有哪些类型的虚拟节点：
 
 ```js
-export type VNodeTypes =
+type VNodeTypes =
   | string
   | VNode
   | Component
@@ -75,10 +64,10 @@ export type VNodeTypes =
   | typeof SuspenseImpl
 ```
 
-一段html标签包含的信息：
+一段`html`标签包含的信息：
 
 ```html
-<button onclick="handClick">BUTTON</button>
+<div class="container" style="color: red;"><h1>Title</h1></div>
 ```
 
 标签、属性、子节点。
@@ -89,18 +78,22 @@ export function h(type, propsOrChildren, children) {
   const l = arguments.length
   
   if (l === 2) {
+    // 传两个参数
     if (isObject(propsOrChildren) && !isArray(propsOrChildren)) {
-      // single vnode without props
+      // propsOrChildren 是对象且不是数组时
       if (isVNode(propsOrChildren)) {
+        // props是Vnode类型，则propsOrChildren为子节点
         return createVNode(type, null, [propsOrChildren])
       }
-      // props without children
+      // props不包含子节点
       return createVNode(type, propsOrChildren)
     } else {
-      // omit props 省略props
+      // 省略props
       return createVNode(type, null, propsOrChildren)
     }
   } else {
+    // 当存在2个已上的参数时
+    // 将子节点放入children数组中
     if (l > 3) {
       children = Array.prototype.slice.call(arguments, 2)
     } else if (l === 3 && isVNode(children)) {
@@ -112,9 +105,19 @@ export function h(type, propsOrChildren, children) {
 
 ```
 
-## createVNode
+通过上面代码知道渲染函数`h`只是`createVnode`函数的语法糖。
 
-createVNode 其实还是调用的_createVNode，这里暂时不用关注vnodeArgsTransformer
+渲染`h()`函数的主要职责就是通过判断参数的长度和类型，去调用`createVnode`函数创建`Vnode`。
+
+下面看下`createVnode`函数。
+
+## `createVNode`
+
+`createVnode`函数位于`Vue`源码的`runtime-core`中`vnode.ts`文件夹。
+
+`createVNode` 其实还是调用的`_createVNode`。
+
+> 这里暂时不用关注`vnodeArgsTransformer`。
 
 ```js
 export const createVNode = (__DEV__ ? createVNodeWithArgsTransform : _createVNode)
@@ -130,16 +133,16 @@ const createVNodeWithArgsTransform = (...args) => {
 
 ```
 
-## _createVNode
+## `_createVNode`
 
-- 首先进行类型校验，如果不符合预期，在dev环境会警告，prod环境会作为注释节点类型。
-- 在判断是否已经是Vnode，是的话直接克隆节点，并对自己点进行规范梳理。
-- 如果是类组件，会获取__vccOpts
+- 首先进行类型校验，如果不符合预期，在`dev`环境会警告，`prod`环境会作为注释节点类型。
+- 在判断是否已经是`Vnode`，是的话直接克隆节点，并对自己点进行规范梳理。
+- 如果是类组件，会获取`__vccOpts`
 - 做Vue2的异步或者函数组件的兼容
-- 如果props存在，会对props进行判断，并规范我们传给节点的class、style，会将class 处理为字符串，将style处理为对象
-- 创建Vnode
+- 如果`props`存在，会对`props`进行判断，并规范我们传给节点的`class`、`style`，会将`class`处理为字符串，将`style`处理为对象
+- 创建`Vnode`
 - 规范梳理子节点
-- 如果构建时需要做兼容处理，则做Vue2的兼容处理，最后返回虚拟节点
+- 如果构建时需要做兼容处理，则做`Vue2`的兼容处理，最后返回虚拟节点
 
 ```js
 function _createVNode(
@@ -158,6 +161,7 @@ function _createVNode(
     type = Comment
   }
 
+  // 👉如果type是Vnode类型，则克隆这个类型的节点，规范梳理子节点，返回克隆的节点
   if (isVNode(type)) {
     const cloned = cloneVNode(type, props, true /* mergeRef: true */)
     if (children) {
@@ -166,24 +170,26 @@ function _createVNode(
     return cloned
   }
 
-  // 类组件
+  // 如果时类组件类型
   if (isClassComponent(type)) {
     type = type.__vccOpts
   }
 
-  // 兼容Vue2
+  // 兼容Vue2的处理
   if (__COMPAT__) {
     type = convertLegacyComponent(type, currentRenderingInstance)
   }
 
-  // class & style 规范
+  // if块中主要处理 class & style 属性
   if (props) {
     // for reactive or proxy objects, we need to clone it to enable mutation.
+    // 如果props是响应式对象，需要通过Object.assign进行拷贝
     if (isProxy(props) || InternalObjectKey in props) {
       props = extend({}, props)
     }
     let { class: klass, style } = props
     if (klass && !isString(klass)) {
+      // class不是字符串，需要规范为字符串
       props.class = normalizeClass(klass)
     }
     if (isObject(style)) {
@@ -210,16 +216,10 @@ function _createVNode(
             : 0
 
   if (__DEV__ && shapeFlag & ShapeFlags.STATEFUL_COMPONENT && isProxy(type)) {
-    type = toRaw(type)
-    warn(
-      `Vue received a Component which was made a reactive object. This can ` +
-        `lead to unnecessary performance overhead, and should be avoided by ` +
-        `marking the component with \`markRaw\` or using \`shallowRef\` ` +
-        `instead of \`ref\`.`,
-      `\nComponent that was made reactive: `,
-      type
+    // 省略...
     )
   }
+
   // 创建VNode的描述对象
   const vnode: VNode = {
     __v_isVNode: true, // 标识 该对象为虚拟节点
@@ -253,14 +253,16 @@ function _createVNode(
   if (__DEV__ && vnode.key !== vnode.key) {
     warn(`VNode created with invalid key (NaN). VNode type:`, vnode.type)
   }
+      
   // 规范子节点
   normalizeChildren(vnode, children)
 
-  // 规范 suspense 子节点
+  // 如果时suspense类型虚拟DOM，规范 suspense 子节点
   if (__FEATURE_SUSPENSE__ && shapeFlag & ShapeFlags.SUSPENSE) {
-    ;(type as typeof SuspenseImpl).normalize(vnode)
+    ;(type).normalize(vnode)
   }
 
+  // 这里暂时不关注
   if (
     isBlockTreeEnabled > 0 &&
     !isBlockNode &&
@@ -282,9 +284,21 @@ function _createVNode(
 
 ```
 
+通过上面的代码可以看出，`_createVNode`函数的主要职责：
+
+- 梳理规范`props`中的`class`、`style`、`child`
+- 创建`Vnode`的描述对象，并返回
+- 对`Vue2`做兼容处理
+
+> `Object.assign`与`Proxy`：https://stackoverflow.com/questions/43185453/object-assign-and-proxies
 
 
-## cloneVNode
+
+上面代码中，如果`type`是`Vnode`类型，会调用`cloneVNode`创建克隆的节点，接下来我们看下`cloneVNode`函数。
+
+## `cloneVNode`
+
+其实我们可以先思考一下，克隆一个`Vnode`，其实可以简化为克隆一个`tree`。
 
 ```js
 export function cloneVNode(
@@ -295,8 +309,10 @@ export function cloneVNode(
   // This is intentionally NOT using spread or extend to avoid the runtime
   // key enumeration cost.
   const { props, ref, patchFlag, children } = vnode
+  // 合并props
   const mergedProps = extraProps ? mergeProps(props || {}, extraProps) : props
-  const cloned: VNode = {
+  // 创建Vnode克隆对象
+  const cloned = {
     __v_isVNode: true,
     __v_skip: true,
     type: vnode.type,
@@ -314,7 +330,7 @@ export function cloneVNode(
     slotScopeIds: vnode.slotScopeIds,
     children:
       __DEV__ && patchFlag === PatchFlags.HOISTED && isArray(children)
-        ? (children as VNode[]).map(deepCloneVNode)
+        ? children.map(deepCloneVNode) // 对子节点进行深克隆
         : children,
     target: vnode.target,
     targetAnchor: vnode.targetAnchor,
@@ -339,15 +355,22 @@ export function cloneVNode(
     el: vnode.el,
     anchor: vnode.anchor
   }
+  // 兼容处理
   if (__COMPAT__) {
     defineLegacyVNodeProperties(cloned)
   }
-  return cloned as any
+  return cloned
 }
 
 ```
 
-## deepClone
+cloneVNode主要做了这么几件事：
+
+- 合并props
+- 创建克隆对象
+- 对Vnode子节点进行深度克隆
+
+## `deepClone`
 
 深度克隆， 如果子节点是数组类型会进行递归克隆
 
