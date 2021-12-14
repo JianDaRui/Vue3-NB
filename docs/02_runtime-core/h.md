@@ -1,6 +1,244 @@
-# 第六篇 `Vue3 RunTimeCore`——高阶 `API` 
 
-## 渲染函数`h()`的使用
+
+# 第七篇`Vue3 RunTimeCore`——高阶 `API` 
+
+## 渲染函数`h()`
+
+在`Vue2`中，有个全局`API：render`函数。`Vue`内部回给这个函数传递一个`h`函数，用于创建`Vnode`的描述对象。
+
+这次，在`Vue3`中。将`h`函数独立出来，作为一个单独的`API`，它的作用仍保持原样：用于创建一个描述所渲染节点的`Vnode`描述对象。
+
+可以接受三个参数： `type`、`props`、`children`。
+
+- `type`用于表示`Vnode`节点类型，可以是`HTML`标签名、组件、异步组件或函数式组件。使用返回`null`的函数将渲染一个注释，此参数必传。
+- `props`是一个对象，与我们将在模板中使用的 `attribute`、`prop` 和事件相对应。可选。
+- `children`是子节点 `VNode`，使用 `h()` 生成，或者使用字符串来获取“文本 `VNode`”，或带有插槽的对象。可选。
+
+在刚来时学习`Vue`的时候，我一直搞不懂`render`函数中h的使用方式。但是随着经验的提升，慢慢理解了`h`函数。
+
+
+
+当我们创建一个组件时，一般都是通过模板来描述`UI`部分，比如：
+
+- 使用`HTML`标签：
+
+```html
+<template>
+    <input 
+      type="radio"
+      :id="branch"
+      :value="branch"
+      name="branch"
+      v-model="currentBranch">
+    <label :for="branch">{{ branch }}</label>
+</template>
+```
+
+- 使用自定义组件标签：
+
+```html
+<template>
+  	<tree-item class="item" :model="treeData" @chang="changeHandler"></tree-item>
+</template>
+```
+
+其实这些都可以将通过`JS`对象抽象为三部分：
+
+- 用于表示模板标签类型的`type`
+- 传给模板的`attribute`、`prop` 和事件
+- 标签包裹的子节点`children`
+
+且子节点同样可以抽象为同样的结构。
+
+![官方图片](D:\vue3深入浅出\docs\.vuepress\public\img\runtime-core\dom-tree.png)
+
+而`h`函数就是做了这么一件事。我们给它传入`type`、`props`、`children`。它返回对应的`Vnode`描述对象。
+
+
+
+### **那为什么我们不能自己直接创建一个`Vnode`描述对象，必须使用h函数呢？**
+
+当然可以，只不过如果涉及Vnode的描述全部自己写的话，有点太累，而且容易出错。在Vue内部，对于一个Vnode描述对象的属性大概又二十多个，有些属性还必须经过规范处理。Vue为了给用于减轻一定的负担，但又不至于太封闭，就创建了`h`函数。我们使用的时候只需要给`h`传递前面提到的参数即可。
+
+这样就给为一些高阶玩家保留了自由发挥的空间。
+
+### **那为什么要使用`h`函数呢？**
+
+其实官方文档已经给出了一个非常贴切又简单的实例：[渲染函数](https://v3.cn.vuejs.org/guide/render-function.html#dom-%E6%A0%91)
+
+`javascript`相较于模板语法，有更高的自由度。当使用模板太过臃肿的时候，就可以使用渲染函数`h`
+
+### `v-if`
+
+```html
+<span v-if="user">
+  	{{user.name}}
+</span>
+<p v-else>Plase login.</p>
+```
+
+使`h`函数表述如下:
+
+```js
+render() {
+  return this.user ? h('span', null, user.name) : h('p', 'Plase login.')
+}
+```
+
+从上面代码可以知道：
+
+- 可以通过三元运算符代替`v-if/v-else`指令
+- 或者通过`if/else`代替`v-if/v-else`指令
+
+### `v-for`
+
+```html
+<ul>
+  <li v-for="item in items">{{ item.name }}</li>
+</ul>
+```
+
+使`h`函数表述如下:
+
+```js
+render() {
+    return h('ul', this.items.map((item) => {
+      return h('li', item.name)
+    }))
+}
+```
+
+- 可以通过map函数代替v-for指令
+- 通过map返回的Vnode，每一个都是不同的对象
+
+### `v-on`
+
+```html
+<button @click="onClick">Button</button>
+```
+
+使`h`函数表述如下:
+
+```js
+render() {
+    return h('button',  {
+		onClick: onClick
+	})
+}
+```
+
+对于input标签可以通过
+
+- `onBlur`监听失去焦点事件
+
+- `onFocus`监听焦点事件
+
+- `onInput`监听输入事件
+
+- `onClick`监听点击事件
+
+- `onKeypress`监听键盘事件
+
+### `v-model`
+
+在`Vue`中，我们可以通过`v-bind`由上向下传值。
+
+也可以通过`v-model`由上向下传值。
+
+当使用`v-model`时，其本质时`v-bind`与`v-on`的语法糖；
+
+在h函数中，如何表示`v-model`？我们看下代码：
+
+```js
+props: ['modelValue'],
+emits: ['update:modelValue'],
+render() {
+  return h(Component, {
+    modelValue: this.modelValue,
+    'onUpdate:modelValue': value => this.$emit('update:modelValue', value)
+  })
+}
+```
+
+上面的代码是一个官方示例。这里表示的是：
+
+- 但使用`v-model`绑定`value`时。必须给子组件`props`中绑定一个`value`，及一个监听更新的函数，来代替`v-bind`与`v-on`。
+
+### `attrs`
+
+在英文中`props`与`attrs`都代表属性的含义，但在`Vue`中这两个属性含义却不相同：
+
+- `props`表示元素对象的属性
+- `attrs`表示元素标签的属性
+
+比如当我们调用h函数创建`Vnode`时，传递的第二个参数，就是`Vnode`对象的属性。
+
+而当我们需要给元素标签设置`attrs`时该如何做呢？
+
+```js
+<input type="button" disabled="true"/>
+```
+
+使`h`函数表述如下:
+
+```js
+render() {
+    return h(input, {
+    	"attrs": {
+        	type: button,
+        	disabled: true
+    	}
+	})
+}
+```
+
+由此在`h`函数中可见`props`包含`attrs`。
+
+### `v-slot`
+
+在`Vue`中`slot`为模板提供了内容分发能力。
+
+在使用时，只需要使用`slot`标签进行占位就可以。
+
+下面看下如何使用h函数创建插槽。
+
+```html
+<div><slot></slot></div>
+```
+
+使`h`函数表述如下:
+
+**普通插槽**
+
+```js
+render() {
+  return h('div', {}, this.$slots.default())
+}
+```
+
+**作用域插槽：**
+
+```html
+<div><slot :text="message"></slot></div>
+```
+
+```js
+props: ['message'],
+render() {
+  return h('div', {}, this.$slots.default({
+    text: this.message
+  }))
+}
+```
+
+- 可以通过`this.$slot`访问静态插槽的内容
+- 如果需要传递状态，可以给`this.$slots.default()`函数传递一个对象参数
+
+
+
+
+
+## 
 
 ## 渲染函数`h()`源码分析
 
@@ -10,36 +248,36 @@
 
 先看下`Vnode`有哪些信息：
 
-- `__v_isVNode: *true`*，内部属性，有该属性表示为`Vnode`
+- `__v_isVNode: *true*`，内部属性，有该属性表示为`Vnode`
 - `__v_skip: true`，内部属性，表示跳过响应式转换，`reactive`转换时会根据此属性进行判断
 - `isCompatRoot?: *true*`，用于是否做了兼容处理的判断
 - `type: VNodeTypes`，虚拟节点的类型
-- `props: (VNodeProps & ExtraProps) | *null`*，虚拟节点的`props`
+- `props: (VNodeProps & ExtraProps) | *null*`，虚拟节点的`props`
 - `key: *string* | *number* | *null*`，虚拟阶段的`key`，可用于`diff`
-- `ref: VNodeNormalizedRef | *null`*，虚拟阶段的引用
-- `scopeId: *string* | *null`*，仅限于`SFC`(单文件组件)，在设置`currentRenderingInstance`当前渲染实例时，一期设置
+- `ref: VNodeNormalizedRef | *null*`，虚拟阶段的引用
+- `scopeId: *string* | *null*`，仅限于`SFC`(单文件组件)，在设置`currentRenderingInstance`当前渲染实例时，一期设置
 - `slotScopeIds: *string*[] | *null*`，仅限于单文件组件，与单文件组件的插槽有关
 - `children: VNodeNormalizedChildren`，子节点
-- `component: ComponentInternalInstance | *null*`，组件实例
-- `dirs: DirectiveBinding[] | *null*`，当前Vnode绑定的指令
-- `transition: TransitionHooks<HostElement> | *null`*，`TransitionHooks`
+- `component: ComponentInternalInstance | null`，组件实例
+- `dirs: DirectiveBinding[] | null`，当前`Vnode`绑定的指令
+- `transition: TransitionHooks<HostElement> | null`，`TransitionHooks`
 - `DOM`相关属性
-  - `el: HostNode | *null`*，宿主阶段
+  - `el: HostNode | *null*`，宿主阶段
   - `anchor: HostNode | *null* // fragment anchor`
-  - `target: HostElement | *null`* ，`teleport target` 传送的目标
+  - `target: HostElement | *null*` ，`teleport target` 传送的目标
   - `targetAnchor: HostNode | *null* // teleport target anchor`
   - `staticCount: *number* `，包含的静态节点的数量
 - `suspense` 悬挂有关的属性
-- `suspense: SuspenseBoundary | *null`*
+- `suspense: SuspenseBoundary | *null*`
   
 - `ssContent: VNode | *null*`
   
-- `ssFallback: VNode | *null`*
+- `ssFallback: VNode | *null*`
 - `optimization only` 用于优化的属性
-  - `shapeFlag: *number`*
-  - `patchFlag: *number`*
+  - `shapeFlag: *number*`
+  - `patchFlag: *number*`
   - `dynamicProps: *string*[] | *null*`
-  - `dynamicChildren: VNode[] | *null`*
+  - `dynamicChildren: VNode[] | *null*`
 - 根节点会有的属性
   - `appContext: AppContext | *null*`，实例上下文
 
@@ -111,7 +349,7 @@ export function h(type, propsOrChildren, children) {
 
 下面看下`createVnode`函数。
 
-## `createVNode`
+### `createVNode`
 
 `createVnode`函数位于`Vue`源码的`runtime-core`中`vnode.ts`文件夹。
 
@@ -133,7 +371,7 @@ const createVNodeWithArgsTransform = (...args) => {
 
 ```
 
-## `_createVNode`
+### `_createVNode`
 
 - 首先进行类型校验，如果不符合预期，在`dev`环境会警告，`prod`环境会作为注释节点类型。
 - 在判断是否已经是`Vnode`，是的话直接克隆节点，并对自己点进行规范梳理。
@@ -296,7 +534,7 @@ function _createVNode(
 
 上面代码中，如果`type`是`Vnode`类型，会调用`cloneVNode`创建克隆的节点，接下来我们看下`cloneVNode`函数。
 
-## `cloneVNode`
+### `cloneVNode`
 
 其实我们可以先思考一下，克隆一个`Vnode`，其实可以简化为克隆一个`tree`。
 
@@ -370,9 +608,9 @@ cloneVNode主要做了这么几件事：
 - 创建克隆对象
 - 对Vnode子节点进行深度克隆
 
-## `deepClone`
+### `deepClone`
 
-深度克隆， 如果子节点是数组类型会进行递归克隆
+深度克隆， 如果子节点是数组类型会进行递归克隆。
 
 ```ts
 function deepCloneVNode(vnode) {
@@ -385,9 +623,9 @@ function deepCloneVNode(vnode) {
 
 ```
 
-## isVNode
+### `isVNode`
 
-很简单，根据创建Vnode描述对象时的私有属性判断
+很简单，根据创建Vnode描述对象时的私有属性判断。
 
 ```js
 export function isVNode(value) {
@@ -395,7 +633,7 @@ export function isVNode(value) {
 }
 ```
 
-## normalizeChildren
+### `normalizeChildren`
 
 ```js
 export function normalizeChildren(vnode, children) {
@@ -418,20 +656,20 @@ export function normalizeChildren(vnode, children) {
       return
     } else {
       type = ShapeFlags.SLOTS_CHILDREN
-      const slotFlag = (children as RawSlots)._
+      const slotFlag = (children)._
       if (!slotFlag && !(InternalObjectKey in children!)) {
         // if slots are not normalized, attach context instance
         // (compiled / normalized slots already have context)
-        ;(children as RawSlots)._ctx = currentRenderingInstance
+        ;(children)._ctx = currentRenderingInstance
       } else if (slotFlag === SlotFlags.FORWARDED && currentRenderingInstance) {
         // a child component receives forwarded slots from the parent.
         // its slot type is determined by its parent's slot type.
         if (
-          (currentRenderingInstance.slots as RawSlots)._ === SlotFlags.STABLE
+          (currentRenderingInstance.slots)._ === SlotFlags.STABLE
         ) {
-          ;(children as RawSlots)._ = SlotFlags.STABLE
+          ;(children)._ = SlotFlags.STABLE
         } else {
-          ;(children as RawSlots)._ = SlotFlags.DYNAMIC
+          ;(children)._ = SlotFlags.DYNAMIC
           vnode.patchFlag |= PatchFlags.DYNAMIC_SLOTS
         }
       }
@@ -444,17 +682,17 @@ export function normalizeChildren(vnode, children) {
     // force teleport children to array so it can be moved around
     if (shapeFlag & ShapeFlags.TELEPORT) {
       type = ShapeFlags.ARRAY_CHILDREN
-      children = [createTextVNode(children as string)]
+      children = [createTextVNode(children)]
     } else {
       type = ShapeFlags.TEXT_CHILDREN
     }
   }
-  vnode.children = children as VNodeNormalizedChildren
+  vnode.children = children
   vnode.shapeFlag |= type
 }
 ```
 
-
+### `isClassComponent`
 
 ```js
 export function isClassComponent(value) {
@@ -462,61 +700,55 @@ export function isClassComponent(value) {
 }
 ```
 
+### `normalizeStyle`
 
+当我们给组件绑定`style`的时候，可能回这么写：
 
-## convertLegacyComponent
-
-```ts
-// 兼容处理
-export function convertLegacyComponent(
-  comp: any,
-  instance: ComponentInternalInstance | null
-): Component {
-  if (comp.__isBuiltIn) {
-    return comp
-  }
-
-  // 2.x constructor
-  if (isFunction(comp) && comp.cid) {
-    comp = comp.options
-  }
-
-  // 2.x async component
-  if (
-    isFunction(comp) &&
-    checkCompatEnabled(DeprecationTypes.COMPONENT_ASYNC, instance, comp)
-  ) {
-    // since after disabling this, plain functions are still valid usage, do not
-    // use softAssert here.
-    return convertLegacyAsyncComponent(comp)
-  }
-
-  // 2.x functional component
-  if (
-    isObject(comp) &&
-    comp.functional &&
-    softAssertCompatEnabled(
-      DeprecationTypes.COMPONENT_FUNCTIONAL,
-      instance,
-      comp
-    )
-  ) {
-    return convertLegacyFunctionalComponent(comp)
-  }
-
-  return comp
-}
-
+```html
+<div :style="{ color: activeColor, fontSize: fontSize + 'px' }"></div>
 ```
 
-## normalizeStyle
+```js
+data() {
+  return {
+    activeColor: 'red',
+    fontSize: 30
+  }
+}
+```
 
+通过对象语法动态绑定`style`。
 
+也可能这么写：
+
+```html
+<div :style="[baseStyles, overridingStyles]"></div>
+```
+
+```js
+data() {
+  return {
+      baseStyles: {
+          activeColor: 'red',
+    	  fontSize: 30
+      },
+      overridingStyles: {
+    	  display: flex
+      },
+  }
+}
+```
+
+通过数组给元素绑定多个`style`对象。
+
+但是这两种写法。最终都会通过`normalizeStyle`函数进行规范梳理。
+
+下面看下`normalizeStyle`函数：
 
 ```js
 export function normalizeStyle(value) {
   if (isArray(value)) {
-    const res: NormalizedStyle = {}
+    const res = {}
     for (let i = 0; i < value.length; i++) {
       const item = value[i]
       const normalized = normalizeStyle(
@@ -536,7 +768,9 @@ export function normalizeStyle(value) {
 
 ```
 
-## normalizeClass
+`normalizeStyle`函数很简单，通过遍历递归将数组类型的`value`，规范为对象类型并返回。
+
+### `normalizeClass`
 
 在我们给节点绑定类的时候，基本有三种形式：
 
@@ -544,9 +778,9 @@ export function normalizeStyle(value) {
 - 以对象形式绑定
 - 以数组形式绑定
 
-但最终绑定到节点上的class，都会以string处理，normalizeClass做的就是这件事。
+但最终绑定到节点上的`class`，都会以`string`处理，`normalizeClass`做的就是这件事。
 
-将所有非string的形式链接为string。
+将所有非`string`的形式链接为`string`。
 
 ```js
 export function normalizeClass(value) {
@@ -554,7 +788,7 @@ export function normalizeClass(value) {
   if (isString(value)) {
     res = value
   } else if (isArray(value)) {
-    // 递归处理
+    // 遍历递归处理
     for (let i = 0; i < value.length; i++) {
       const normalized = normalizeClass(value[i])
       if (normalized) {
@@ -570,35 +804,39 @@ export function normalizeClass(value) {
   }
   return res.trim()
 }
-
 ```
 
+`normalizeClass`函数思路其实与`normalizeStyle`相同。
 
+> Tip：这种遍历递归经常会在面试题中出现。
 
-## mergeProps
+### `mergeProps`
 
-- 会对节点的class、style、绑定的事件及非空属性进行合并
-- 合并的过程会对class、style做normalize处理
-- 如果绑定多个事件，会将所有事件存储在数组中
+在前面的分析中，我们知道，克隆`Vnode`的过程中，回调用`mergeProps`对`vnode.props`进行合并。并将合并后的`mergedProps`传给`cloned Vnode`。
+
+下面看下`mergedProps`是如何进行合并的？
 
 ```js
-export function mergeProps(...args: (Data & VNodeProps)[]) {
+export function mergeProps(...args) {
   const ret = extend({}, args[0])
   for (let i = 1; i < args.length; i++) {
     const toMerge = args[i]
     for (const key in toMerge) {
       if (key === 'class') {
+        // merge Class
         if (ret.class !== toMerge.class) {
           ret.class = normalizeClass([ret.class, toMerge.class])
         }
       } else if (key === 'style') {
+        // merge Style
         ret.style = normalizeStyle([ret.style, toMerge.style])
       } else if (isOn(key)) {
+        // merge 监听的事件
         const existing = ret[key]
         const incoming = toMerge[key]
         if (existing !== incoming) {
           ret[key] = existing
-            ? [].concat(existing as any, incoming as any)
+            ? [].concat(existing, incoming)
             : incoming
         }
       } else if (key !== '') {
@@ -611,122 +849,11 @@ export function mergeProps(...args: (Data & VNodeProps)[]) {
 
 ```
 
+- 会对节点的`class`、`style`、绑定的事件及非空属性进行合并
+- 合并的过程会对`class`、`style`做`normalize`处理
+- 如果绑定多个事件，会将所有事件存储在数组中
+
+## 总结
 
 
-## normalizeVNode
-
-
-
-```js
-export function normalizeVNode(child) {
-  if (child == null || typeof child === 'boolean') {
-    // empty placeholder
-    return createVNode(Comment)
-  } else if (isArray(child)) {
-    // fragment
-    return createVNode(
-      Fragment,
-      null,
-      // #3666, avoid reference pollution when reusing vnode
-      child.slice()
-    )
-  } else if (typeof child === 'object') {
-    // already vnode, this should be the most common since compiled templates
-    // always produce all-vnode children arrays
-    return cloneIfMounted(child)
-  } else {
-    // strings and numbers
-    return createVNode(Text, null, String(child))
-  }
-}
-```
-
-## cloneIfMounted
-
-```js
-export function cloneIfMounted(child: VNode): VNode {
-  return child.el === null ? child : cloneVNode(child)
-}
-```
-
-## createStaticVNode
-
-```js
-/**
- * @private
- */
-export function createStaticVNode(
-  content: string,
-  numberOfNodes: number
-): VNode {
-  // A static vnode can contain multiple stringified elements, and the number
-  // of elements is necessary for hydration.
-  const vnode = createVNode(Static, null, content)
-  vnode.staticCount = numberOfNodes
-  return vnode
-}
-```
-
-## createTextVNode
-
-```js
-/**
- * @private
- */
-export function createTextVNode(text: string = ' ', flag: number = 0): VNode {
-  return createVNode(Text, null, text, flag)
-}
-```
-
-
-
-## createCommentVNode
-
-```js
-/**
- * @private
- */
-export function createCommentVNode(
-  text: string = '',
-  // when used as the v-else branch, the comment node must be created as a
-  // block to ensure correct updates.
-  asBlock: boolean = false
-): VNode {
-  return asBlock
-    ? (openBlock(), createBlock(Comment, null, text))
-    : createVNode(Comment, null, text)
-}
-```
-
-
-
-```js
-export function createBlock(
-  type: VNodeTypes | ClassComponent,
-  props?: Record<string, any> | null,
-  children?: any,
-  patchFlag?: number,
-  dynamicProps?: string[]
-): VNode {
-  const vnode = createVNode(
-    type,
-    props,
-    children,
-    patchFlag,
-    dynamicProps,
-    true /* isBlock: prevent a block from tracking itself */
-  )
-  // save current block children on the block vnode
-  vnode.dynamicChildren =
-    isBlockTreeEnabled > 0 ? currentBlock || (EMPTY_ARR as any) : null
-  // close block
-  closeBlock()
-  // a block is always going to be patched, so track it as a child of its
-  // parent block
-  if (isBlockTreeEnabled > 0 && currentBlock) {
-    currentBlock.push(vnode)
-  }
-  return vnode
-}
-```
 
