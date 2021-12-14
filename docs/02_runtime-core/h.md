@@ -853,6 +853,43 @@ export function mergeProps(...args) {
 - 合并的过程会对`class`、`style`做`normalize`处理
 - 如果绑定多个事件，会将所有事件存储在数组中
 
+### `withDirectives`
+
+```js
+export function withDirectives<T extends VNode>(
+  vnode: T,
+  directives: DirectiveArguments
+): T {
+  const internalInstance = currentRenderingInstance
+  if (internalInstance === null) {
+    __DEV__ && warn(`withDirectives can only be used inside render functions.`)
+    return vnode
+  }
+  const instance = internalInstance.proxy
+  const bindings: DirectiveBinding[] = vnode.dirs || (vnode.dirs = [])
+  for (let i = 0; i < directives.length; i++) {
+    let [dir, value, arg, modifiers = EMPTY_OBJ] = directives[i]
+    if (isFunction(dir)) {
+      dir = {
+        mounted: dir,
+        updated: dir
+      } as ObjectDirective
+    }
+    bindings.push({
+      dir,
+      instance,
+      value,
+      oldValue: void 0,
+      arg,
+      modifiers
+    })
+  }
+  return vnode
+}
+```
+
+
+
 ## 总结
 
 
