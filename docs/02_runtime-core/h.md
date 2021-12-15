@@ -90,6 +90,27 @@ render() {
 - 可以通过三元运算符代替`v-if/v-else`指令
 - 或者通过`if/else`代替`v-if/v-else`指令
 
+### `v-show`
+
+```html
+<div v-show="isActive">Content</div>
+```
+
+使`h`函数表述如下:
+
+```js
+render() {
+    return h("div", {
+      "directives": [{
+        name: "show",
+        value: isActive
+      }], 
+    }, "Content");
+}
+```
+
+
+
 ### `v-for`
 
 ```html
@@ -210,6 +231,8 @@ render() {
 
 **普通插槽**
 
+可以通过 [`this.$slots`](https://v3.cn.vuejs.org/api/instance-properties.html#slots) 访问静态插槽的内容，每个插槽都是一个 VNode 数组：
+
 ```js
 render() {
   return h('div', {}, this.$slots.default())
@@ -219,11 +242,13 @@ render() {
 **作用域插槽：**
 
 ```html
+<!--定义插槽组件child-->
 <div><slot :text="message"></slot></div>
+<!--使用组件child-->
+<div><child v-slot:default="slotProps">{{ slotProps.text }}</child></div>
 ```
 
 ```js
-props: ['message'],
 render() {
   return h('div', {}, this.$slots.default({
     text: this.message
@@ -234,9 +259,46 @@ render() {
 - 可以通过`this.$slot`访问静态插槽的内容
 - 如果需要传递状态，可以给`this.$slots.default()`函数传递一个对象参数
 
+**需要插入HTML或者组件时：**
+
+```html
+<div><child v-slot:default="slotProps"><span>{{ slotProps.text }}</span></child></div>
+```
+
+```js
+const { h, resolveComponent } = Vue
+
+render() {
+  return h('div', [
+    h(
+      resolveComponent('child'),
+      {},
+      // 将 `slots` 以 { name: props => VNode | Array<VNode> } 的形式传递给子对象。
+      {
+        default: (props) => Vue.h('span', props.text)
+      }
+    )
+  ])
+}
+```
 
 
 
+### `ref`
+
+```html
+<someComponent ref="someComponent"></someComponent>
+```
+
+使`h`函数表述如下:
+
+```js
+render() {
+  return h(someComponent, {"ref": "someComponent"}))
+}
+```
+
+ 
 
 ## 
 
