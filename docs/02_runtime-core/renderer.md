@@ -1139,6 +1139,10 @@ const processComponent = (
 
 
 
+mountComponent函数：
+
+
+
 ```typescript
 const mountComponent: MountComponentFn = (
     initialVNode,
@@ -1151,8 +1155,11 @@ const mountComponent: MountComponentFn = (
   ) => {
     // 2.x compat may pre-creaate the component instance before actually
     // mounting
+    // 
     const compatMountInstance =
       __COMPAT__ && initialVNode.isCompatRoot && initialVNode.component
+    
+    // 创建组件实例
     const instance: ComponentInternalInstance =
       compatMountInstance ||
       (initialVNode.component = createComponentInstance(
@@ -1160,7 +1167,8 @@ const mountComponent: MountComponentFn = (
         parentComponent,
         parentSuspense
       ))
-
+	
+ 
     if (__DEV__ && instance.type.__hmrId) {
       registerHMR(instance)
     }
@@ -1171,15 +1179,19 @@ const mountComponent: MountComponentFn = (
     }
 
     // inject renderer internals for keepAlive
+    // 为KeepAlive注入内部渲染器，internals是一个DOM操作配置对象
     if (isKeepAlive(initialVNode)) {
       ;(instance.ctx as KeepAliveContext).renderer = internals
     }
 
     // resolve props and slots for setup context
+    // 执行setupComponent函数
+    // 解析props和slots，执行组件配置项中的setup函数，并返回setup函数结果
     if (!(__COMPAT__ && compatMountInstance)) {
       if (__DEV__) {
         startMeasure(instance, `init`)
       }
+      // 很关键的一步
       setupComponent(instance)
       if (__DEV__) {
         endMeasure(instance, `init`)
@@ -1188,6 +1200,7 @@ const mountComponent: MountComponentFn = (
 
     // setup() is async. This component relies on async logic to be resolved
     // before proceeding
+    // setup 是异步的情况，该组件依赖于异步逻辑在继续之前被解析
     if (__FEATURE_SUSPENSE__ && instance.asyncDep) {
       parentSuspense && parentSuspense.registerDep(instance, setupRenderEffect)
 
@@ -1199,7 +1212,7 @@ const mountComponent: MountComponentFn = (
       }
       return
     }
-
+	// 调用setupRenderEffect函数，创建渲染级别的Effect
     setupRenderEffect(
       instance,
       initialVNode,
@@ -1219,10 +1232,120 @@ const mountComponent: MountComponentFn = (
 
 
 
+createComponentInstance函数
+
+```typescript
+// 创建组件实例
+export function createComponentInstance(
+  vnode: VNode,
+  parent: ComponentInternalInstance | null,
+  suspense: SuspenseBoundary | null
+) {
+  const type = vnode.type as ConcreteComponent
+  // inherit parent app context - or - if root, adopt from root vnode
+  const appContext =
+    (parent ? parent.appContext : vnode.appContext) || emptyAppContext
+
+  const instance: ComponentInternalInstance = {
+    uid: uid++,
+    vnode,
+    type,
+    parent,
+    appContext,
+    root: null!, // to be immediately set
+    next: null,
+    subTree: null!, // will be set synchronously right after creation
+    update: null!, // will be set synchronously right after creation
+    render: null,
+    proxy: null,
+    exposed: null,
+    exposeProxy: null,
+    withProxy: null,
+    effects: null,
+    provides: parent ? parent.provides : Object.create(appContext.provides),
+    accessCache: null!,
+    renderCache: [],
+
+    // local resovled assets
+    components: null,
+    directives: null,
+
+    // resolved props and emits options
+    propsOptions: normalizePropsOptions(type, appContext),
+    emitsOptions: normalizeEmitsOptions(type, appContext),
+
+    // emit
+    emit: null as any, // to be set immediately
+    emitted: null,
+
+    // props default value
+    propsDefaults: EMPTY_OBJ,
+
+    // inheritAttrs
+    inheritAttrs: type.inheritAttrs,
+
+    // state
+    ctx: EMPTY_OBJ,
+    data: EMPTY_OBJ,
+    props: EMPTY_OBJ,
+    attrs: EMPTY_OBJ,
+    slots: EMPTY_OBJ,
+    refs: EMPTY_OBJ,
+    setupState: EMPTY_OBJ,
+    setupContext: null,
+
+    // suspense related
+    suspense,
+    suspenseId: suspense ? suspense.pendingId : 0,
+    asyncDep: null,
+    asyncResolved: false,
+
+    // lifecycle hooks
+    // not using enums here because it results in computed properties
+    isMounted: false,
+    isUnmounted: false,
+    isDeactivated: false,
+    bc: null,
+    c: null,
+    bm: null,
+    m: null,
+    bu: null,
+    u: null,
+    um: null,
+    bum: null,
+    da: null,
+    a: null,
+    rtg: null,
+    rtc: null,
+    ec: null,
+    sp: null
+  }
+  if (__DEV__) {
+    instance.ctx = createRenderContext(instance)
+  } else {
+    instance.ctx = { _: instance }
+  }
+  instance.root = parent ? parent.root : instance
+  instance.emit = emit.bind(null, instance)
+
+  return instance
+}
+```
+
+
+
+
+
+updateComponent函数：
+
+
+
 ```typescript
 const updateComponent = (n1: VNode, n2: VNode, optimized: boolean) => {
     const instance = (n2.component = n1.component)!
+    // 根据判断来更新组件
     if (shouldUpdateComponent(n1, n2, optimized)) {
+      // 异常的处理方式
       if (
         __FEATURE_SUSPENSE__ &&
         instance.asyncDep &&
@@ -1230,31 +1353,34 @@ const updateComponent = (n1: VNode, n2: VNode, optimized: boolean) => {
       ) {
         // async & still pending - just update props and slots
         // since the component's reactive effect for render isn't set-up yet
-        if (__DEV__) {
-          pushWarningContext(n2)
-        }
+        // 异步 & 仍然挂起 - 只需更新道具和插槽，因为尚未设置组件的响应式副作用
         updateComponentPreRender(instance, n2, optimized)
-        if (__DEV__) {
-          popWarningContext()
-        }
+        
         return
       } else {
         // normal update
+        // 正常更新
         instance.next = n2
         // in case the child component is also queued, remove it to avoid
         // double updating the same child component in the same flush.
         invalidateJob(instance.update)
-        // instance.update is the reactive effect runner.
+        // instance.update由setupRenderEffect函数创建，就是一个响应式的 effect runner
         instance.update()
       }
     } else {
-      // no update needed. just copy over properties
+      // 如果不需要更新，直接拷贝复制属性
       n2.component = n1.component
       n2.el = n1.el
       instance.vnode = n2
     }
   }
 ```
+
+
+
+setupRenderEffect函数：
+
+用于创建一个复制渲染的响应式的副作用
 
 
 
@@ -1277,6 +1403,7 @@ const updateComponent = (n1: VNode, n2: VNode, optimized: boolean) => {
         const { bm, m, parent } = instance
 
         // beforeMount hook
+        // 执行beforeMount生命周期函数
         if (bm) {
           invokeArrayFns(bm)
         }
@@ -1284,13 +1411,16 @@ const updateComponent = (n1: VNode, n2: VNode, optimized: boolean) => {
         if ((vnodeHook = props && props.onVnodeBeforeMount)) {
           invokeVNodeHook(vnodeHook, parent, initialVNode)
         }
+        
+        // 兼容处理
         if (
           __COMPAT__ &&
           isCompatEnabled(DeprecationTypes.INSTANCE_EVENT_HOOKS, instance)
         ) {
           instance.emit('hook:beforeMount')
         }
-
+	    
+        // 服务端渲染处理逻辑
         if (el && hydrateNode) {
           // vnode has adopted host node - perform hydration instead of mount.
           const hydrateSubTree = () => {
@@ -1328,16 +1458,10 @@ const updateComponent = (n1: VNode, n2: VNode, optimized: boolean) => {
             hydrateSubTree()
           }
         } else {
-          if (__DEV__) {
-            startMeasure(instance, `render`)
-          }
+          // 渲染组件。创建Vnode
           const subTree = (instance.subTree = renderComponentRoot(instance))
-          if (__DEV__) {
-            endMeasure(instance, `render`)
-          }
-          if (__DEV__) {
-            startMeasure(instance, `patch`)
-          }
+           
+          // 调用patch函数
           patch(
             null,
             subTree,
@@ -1347,12 +1471,11 @@ const updateComponent = (n1: VNode, n2: VNode, optimized: boolean) => {
             parentSuspense,
             isSVG
           )
-          if (__DEV__) {
-            endMeasure(instance, `patch`)
-          }
+           
           initialVNode.el = subTree.el
         }
         // mounted hook
+        // 执行mounted生命周期函数
         if (m) {
           queuePostRenderEffect(m, parentSuspense)
         }
@@ -4436,6 +4559,356 @@ export function invokeVNodeHook(
     vnode,
     prevVNode
   ])
+}
+```
+
+
+
+
+
+```js
+// setUp组件
+export function setupComponent(
+  instance: ComponentInternalInstance,
+  isSSR = false
+) {
+  isInSSRComponentSetup = isSSR
+
+  const { props, children } = instance.vnode
+  const isStateful = isStatefulComponent(instance)
+  initProps(instance, props, isStateful, isSSR)
+  initSlots(instance, children)
+
+  const setupResult = isStateful
+    ? setupStatefulComponent(instance, isSSR)
+    : undefined
+  isInSSRComponentSetup = false
+  return setupResult
+}
+
+// setup状态组件
+function setupStatefulComponent(
+  instance: ComponentInternalInstance,
+  isSSR: boolean
+) {
+  const Component = instance.type as ComponentOptions
+
+  if (__DEV__) {
+    if (Component.name) {
+      validateComponentName(Component.name, instance.appContext.config)
+    }
+    if (Component.components) {
+      const names = Object.keys(Component.components)
+      for (let i = 0; i < names.length; i++) {
+        validateComponentName(names[i], instance.appContext.config)
+      }
+    }
+    if (Component.directives) {
+      const names = Object.keys(Component.directives)
+      for (let i = 0; i < names.length; i++) {
+        validateDirectiveName(names[i])
+      }
+    }
+    if (Component.compilerOptions && isRuntimeOnly()) {
+      warn(
+        `"compilerOptions" is only supported when using a build of Vue that ` +
+          `includes the runtime compiler. Since you are using a runtime-only ` +
+          `build, the options should be passed via your build tool config instead.`
+      )
+    }
+  }
+  // 0. create render proxy property access cache
+  instance.accessCache = Object.create(null)
+  // 1. create public instance / render proxy
+  // also mark it raw so it's never observed
+  instance.proxy = markRaw(new Proxy(instance.ctx, PublicInstanceProxyHandlers))
+  if (__DEV__) {
+    exposePropsOnRenderContext(instance)
+  }
+  // 2. call setup()
+  const { setup } = Component
+  if (setup) {
+    const setupContext = (instance.setupContext =
+      setup.length > 1 ? createSetupContext(instance) : null)
+
+    currentInstance = instance
+    pauseTracking()
+    const setupResult = callWithErrorHandling(
+      setup,
+      instance,
+      ErrorCodes.SETUP_FUNCTION,
+      [__DEV__ ? shallowReadonly(instance.props) : instance.props, setupContext]
+    )
+    resetTracking()
+    currentInstance = null
+
+    if (isPromise(setupResult)) {
+      if (isSSR) {
+        // return the promise so server-renderer can wait on it
+        return setupResult
+          .then((resolvedResult: unknown) => {
+            handleSetupResult(instance, resolvedResult, isSSR)
+          })
+          .catch(e => {
+            handleError(e, instance, ErrorCodes.SETUP_FUNCTION)
+          })
+      } else if (__FEATURE_SUSPENSE__) {
+        // async setup returned Promise.
+        // bail here and wait for re-entry.
+        instance.asyncDep = setupResult
+      } else if (__DEV__) {
+        warn(
+          `setup() returned a Promise, but the version of Vue you are using ` +
+            `does not support it yet.`
+        )
+      }
+    } else {
+      handleSetupResult(instance, setupResult, isSSR)
+    }
+  } else {
+    finishComponentSetup(instance, isSSR)
+  }
+}
+
+// 处理setup结果
+export function handleSetupResult(
+  instance: ComponentInternalInstance,
+  setupResult: unknown,
+  isSSR: boolean
+) {
+  if (isFunction(setupResult)) {
+    // setup returned an inline render function
+    if (__NODE_JS__ && (instance.type as ComponentOptions).__ssrInlineRender) {
+      // when the function's name is `ssrRender` (compiled by SFC inline mode),
+      // set it as ssrRender instead.
+      instance.ssrRender = setupResult
+    } else {
+      instance.render = setupResult as InternalRenderFunction
+    }
+  } else if (isObject(setupResult)) {
+    if (__DEV__ && isVNode(setupResult)) {
+      warn(
+        `setup() should not return VNodes directly - ` +
+          `return a render function instead.`
+      )
+    }
+    // setup returned bindings.
+    // assuming a render function compiled from template is present.
+    if (__DEV__ || __FEATURE_PROD_DEVTOOLS__) {
+      instance.devtoolsRawSetupState = setupResult
+    }
+    instance.setupState = proxyRefs(setupResult)
+    if (__DEV__) {
+      exposeSetupStateOnRenderContext(instance)
+    }
+  } else if (__DEV__ && setupResult !== undefined) {
+    warn(
+      `setup() should return an object. Received: ${
+        setupResult === null ? 'null' : typeof setupResult
+      }`
+    )
+  }
+  finishComponentSetup(instance, isSSR)
+}
+
+export function initProps(
+  instance: ComponentInternalInstance,
+  rawProps: Data | null,
+  isStateful: number, // result of bitwise flag comparison
+  isSSR = false
+) {
+  const props: Data = {}
+  const attrs: Data = {}
+  def(attrs, InternalObjectKey, 1)
+
+  instance.propsDefaults = Object.create(null)
+
+  setFullProps(instance, rawProps, props, attrs)
+
+  // ensure all declared prop keys are present
+  for (const key in instance.propsOptions[0]) {
+    if (!(key in props)) {
+      props[key] = undefined
+    }
+  }
+
+  // validation
+  if (__DEV__) {
+    validateProps(rawProps || {}, props, instance)
+  }
+
+  if (isStateful) {
+    // stateful
+    instance.props = isSSR ? props : shallowReactive(props)
+  } else {
+    if (!instance.type.props) {
+      // functional w/ optional props, props === attrs
+      instance.props = attrs
+    } else {
+      // functional w/ declared props
+      instance.props = props
+    }
+  }
+  instance.attrs = attrs
+}
+
+
+export const initSlots = (
+  instance: ComponentInternalInstance,
+  children: VNodeNormalizedChildren
+) => {
+  if (instance.vnode.shapeFlag & ShapeFlags.SLOTS_CHILDREN) {
+    const type = (children as RawSlots)._
+    if (type) {
+      // users can get the shallow readonly version of the slots object through `this.$slots`,
+      // we should avoid the proxy object polluting the slots of the internal instance
+      instance.slots = toRaw(children as InternalSlots)
+      // make compiler marker non-enumerable
+      def(children as InternalSlots, '_', type)
+    } else {
+      normalizeObjectSlots(
+        children as RawSlots,
+        (instance.slots = {}),
+        instance
+      )
+    }
+  } else {
+    instance.slots = {}
+    if (children) {
+      normalizeVNodeSlots(instance, children)
+    }
+  }
+  def(instance.slots, InternalObjectKey, 1)
+}
+```
+
+
+
+shouldUpdateComponent函数：
+
+```typescript
+export function shouldUpdateComponent(
+  prevVNode: VNode,
+  nextVNode: VNode,
+  optimized?: boolean
+): boolean {
+  const { props: prevProps, children: prevChildren, component } = prevVNode
+  const { props: nextProps, children: nextChildren, patchFlag } = nextVNode
+  const emits = component!.emitsOptions
+
+  // Parent component's render function was hot-updated. Since this may have
+  // caused the child component's slots content to have changed, we need to
+  // force the child to update as well.
+  if (__DEV__ && (prevChildren || nextChildren) && isHmrUpdating) {
+    return true
+  }
+
+  // force child update for runtime directive or transition on component vnode.
+  if (nextVNode.dirs || nextVNode.transition) {
+    return true
+  }
+
+  if (optimized && patchFlag >= 0) {
+    if (patchFlag & PatchFlags.DYNAMIC_SLOTS) {
+      // slot content that references values that might have changed,
+      // e.g. in a v-for
+      return true
+    }
+    if (patchFlag & PatchFlags.FULL_PROPS) {
+      if (!prevProps) {
+        return !!nextProps
+      }
+      // presence of this flag indicates props are always non-null
+      return hasPropsChanged(prevProps, nextProps!, emits)
+    } else if (patchFlag & PatchFlags.PROPS) {
+      const dynamicProps = nextVNode.dynamicProps!
+      for (let i = 0; i < dynamicProps.length; i++) {
+        const key = dynamicProps[i]
+        if (
+          nextProps![key] !== prevProps![key] &&
+          !isEmitListener(emits, key)
+        ) {
+          return true
+        }
+      }
+    }
+  } else {
+    // this path is only taken by manually written render functions
+    // so presence of any children leads to a forced update
+    if (prevChildren || nextChildren) {
+      if (!nextChildren || !(nextChildren as any).$stable) {
+        return true
+      }
+    }
+    if (prevProps === nextProps) {
+      return false
+    }
+    if (!prevProps) {
+      return !!nextProps
+    }
+    if (!nextProps) {
+      return true
+    }
+    return hasPropsChanged(prevProps, nextProps, emits)
+  }
+
+  return false
+}
+```
+
+
+
+
+
+```typescript
+function hasPropsChanged(
+  prevProps: Data,
+  nextProps: Data,
+  emitsOptions: ComponentInternalInstance['emitsOptions']
+): boolean {
+  const nextKeys = Object.keys(nextProps)
+  if (nextKeys.length !== Object.keys(prevProps).length) {
+    return true
+  }
+  for (let i = 0; i < nextKeys.length; i++) {
+    const key = nextKeys[i]
+    if (
+      nextProps[key] !== prevProps[key] &&
+      !isEmitListener(emitsOptions, key)
+    ) {
+      return true
+    }
+  }
+  return false
+}
+```
+
+
+
+isEmitListener函数：
+
+```typescript
+// Check if an incoming prop key is a declared emit event listener.
+// e.g. With `emits: { click: null }`, props named `onClick` and `onclick` are
+// both considered matched listeners.
+export function isEmitListener(
+  options: ObjectEmitsOptions | null,
+  key: string
+): boolean {
+  if (!options || !isOn(key)) {
+    return false
+  }
+
+  if (__COMPAT__ && key.startsWith(compatModelEventPrefix)) {
+    return true
+  }
+
+  key = key.slice(2).replace(/Once$/, '')
+  return (
+    hasOwn(options, key[0].toLowerCase() + key.slice(1)) ||
+    hasOwn(options, hyphenate(key)) ||
+    hasOwn(options, key)
+  )
 }
 ```
 
