@@ -1,0 +1,23 @@
+# 目录结构梳理
+
+- 新旧响应式原理对比
+  - Object.defineProperty与Proxy
+  - 观察者模式与代理模式
+  - 总结
+- Object与Array类型的处理
+  - 如何Track&Trigger
+  - 依赖与数据
+  - 什么是effect
+  - 数据与依赖的关系
+  - 总结
+- Map与Set类型的处理
+  - 字典与集合
+  - 迭代模式&遍历模式
+  - 增删改查
+  - 总结
+- Reactive相关的API实现
+  - reactive
+  - ref
+  - computed
+  - effect
+  - 总结

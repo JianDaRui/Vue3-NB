@@ -1,0 +1,15 @@
+<script src="../../dist/vue.global.js"></script>
+
+
+<script>
+  const { defineComponent, defineAsyncComponent } = Vue
+  // 传入配置对象作为参数
+  // 一个 setup 函数，函数名称将作为组件名称来使用
+  
+  const AsyncComp = defineAsyncComponent(() =>
+    import('./tree.vue')
+  )
+
+  console.log(AsyncComp)
+</script>
+
