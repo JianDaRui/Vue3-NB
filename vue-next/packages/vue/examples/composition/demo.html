@@ -1,0 +1,30 @@
+<script src="../../dist/vue.global.js"></script>
+<script src="../../../../node_modules/lodash/lodash.min.js"></script>
+<div id="app">
+  <input :value="input" @input="update" />
+  <div>{{output}}</div>
+</div>
+
+<script>
+const { ref, computed, effect } = Vue
+
+Vue.createApp({
+  setup() {
+    const input = ref(0)
+    const output = computed(function computedEffect() { return input.value + 5})
+    
+    // 会触发 computedEffect & 下面的effect重新执行
+    const update = _.debounce(e => { input.value = e.target.value*1 }, 50)
+    
+	  effect(function callback() {
+        // 依赖收集
+        console.log(input.value)
+    })
+    return {
+      input,
+      output,
+      update
+    }
+  }
+}).mount('#app')
+</script>
