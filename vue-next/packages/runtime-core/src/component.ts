@@ -422,7 +422,7 @@ export interface ComponentInternalInstance {
    */
   [LifecycleHooks.SERVER_PREFETCH]: LifecycleHook<() => Promise<unknown>>
 }
-
+// 实例上下文对象
 const emptyAppContext = createAppContext()
 
 let uid = 0
@@ -437,7 +437,7 @@ export function createComponentInstance(
   // inherit parent app context - or - if root, adopt from root vnode
   const appContext =
     (parent ? parent.appContext : vnode.appContext) || emptyAppContext
-
+  // 组建实例
   const instance: ComponentInternalInstance = {
     uid: uid++,
     vnode,
@@ -515,9 +515,12 @@ export function createComponentInstance(
   if (__DEV__) {
     instance.ctx = createRenderContext(instance)
   } else {
+    // ctx 就是当前组件实例
     instance.ctx = { _: instance }
   }
+  // 引用父组件
   instance.root = parent ? parent.root : instance
+  // 绑定事件触发系统
   instance.emit = emit.bind(null, instance)
 
   return instance
@@ -555,17 +558,19 @@ export function isStatefulComponent(instance: ComponentInternalInstance) {
 export let isInSSRComponentSetup = false
 
 // setUp组件
-export function setupComponent(
+export function  setupComponent(
   instance: ComponentInternalInstance,
   isSSR = false
 ) {
   isInSSRComponentSetup = isSSR
 
   const { props, children } = instance.vnode
+  // 是否是状态组件
   const isStateful = isStatefulComponent(instance)
+  // 初始化props slots
   initProps(instance, props, isStateful, isSSR)
   initSlots(instance, children)
-
+  // 获取setup函数的返回结果
   const setupResult = isStateful
     ? setupStatefulComponent(instance, isSSR)
     : undefined
@@ -620,6 +625,7 @@ function setupStatefulComponent(
 
     currentInstance = instance
     pauseTracking()
+    // 执行setup函数获取返回的结果 
     const setupResult = callWithErrorHandling(
       setup,
       instance,
@@ -628,7 +634,7 @@ function setupStatefulComponent(
     )
     resetTracking()
     currentInstance = null
-
+    // 异步的情况
     if (isPromise(setupResult)) {
       if (isSSR) {
         // return the promise so server-renderer can wait on it
@@ -650,6 +656,9 @@ function setupStatefulComponent(
         )
       }
     } else {
+      // 这个函数最后调用的还是finishComponentSetup函数
+      // 只不过在中间对setupResult做了一些判断处理·
+      // 比如是函数的情况
       handleSetupResult(instance, setupResult, isSSR)
     }
   } else {
@@ -670,6 +679,8 @@ export function handleSetupResult(
       // set it as ssrRender instead.
       instance.ssrRender = setupResult
     } else {
+      // 如果返回的结果是函数
+      // 将函数作为渲染函数
       instance.render = setupResult as InternalRenderFunction
     }
   } else if (isObject(setupResult)) {
@@ -684,6 +695,7 @@ export function handleSetupResult(
     if (__DEV__ || __FEATURE_PROD_DEVTOOLS__) {
       instance.devtoolsRawSetupState = setupResult
     }
+    // 如果是对象，会调用proxyRefs函数 做一层浅代理
     instance.setupState = proxyRefs(setupResult)
     if (__DEV__) {
       exposeSetupStateOnRenderContext(instance)
@@ -745,6 +757,7 @@ export function finishComponentSetup(
       NOOP) as InternalRenderFunction
   } else if (!instance.render) {
     // could be set from setup()
+    // 如果组件没有render函数， 则用户可能在setup函数中设置了render函数
     if (compile && !Component.render) {
       const template =
         (__COMPAT__ &&
@@ -752,14 +765,17 @@ export function finishComponentSetup(
           instance.vnode.props['inline-template']) ||
         Component.template
       if (template) {
+        // 如果使用的是模版组件
         if (__DEV__) {
           startMeasure(instance, `compile`)
         }
+        // 从组件实例的配置属性中获取编译配置项
         const { isCustomElement, compilerOptions } = instance.appContext.config
         const {
           delimiters,
           compilerOptions: componentCompilerOptions
         } = Component
+        // 获取最终的 配置项
         const finalCompilerOptions: CompilerOptions = extend(
           extend(
             {
@@ -777,13 +793,16 @@ export function finishComponentSetup(
             extend(finalCompilerOptions.compatConfig, Component.compatConfig)
           }
         }
+        // 调用编译函数 这个函数执行结束会完成模版的编译 转换 生成
+        // 根据template 编译配置项获取渲染函数
+        // 将最后生成的结果作为render函数
         Component.render = compile(template, finalCompilerOptions)
         if (__DEV__) {
           endMeasure(instance, `compile`)
         }
       }
     }
-
+    // 在实例上挂载渲染函数
     instance.render = (Component.render || NOOP) as InternalRenderFunction
 
     // for runtime-compiled render functions using `with` blocks, the render
