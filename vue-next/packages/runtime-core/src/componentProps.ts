@@ -134,7 +134,7 @@ type NormalizedProp =
 // and an array of prop keys that need value casting (booleans and defaults)
 export type NormalizedProps = Record<string, NormalizedProp>
 export type NormalizedPropsOptions = [NormalizedProps, string[]] | []
-
+// 初始化props
 export function initProps(
   instance: ComponentInternalInstance,
   rawProps: Data | null,
@@ -163,6 +163,7 @@ export function initProps(
 
   if (isStateful) {
     // stateful
+    // 非服务端渲染模式下进行浅层响应转换
     instance.props = isSSR ? props : shallowReactive(props)
   } else {
     if (!instance.type.props) {
@@ -173,9 +174,11 @@ export function initProps(
       instance.props = props
     }
   }
+  // 设置attrs
   instance.attrs = attrs
 }
 
+// 更新Props
 export function updateProps(
   instance: ComponentInternalInstance,
   rawProps: Data | null,
@@ -297,6 +300,7 @@ export function updateProps(
   }
 
   // trigger updates for $attrs in case it's used in component slots
+  // 触发更新 
   if (hasAttrsChanged) {
     trigger(instance, TriggerOpTypes.SET, '$attrs')
   }

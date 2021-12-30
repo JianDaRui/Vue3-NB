@@ -38,6 +38,7 @@ export function markAttrsAccessed() {
   accessedAttrs = true
 }
 
+// 渲染组件跟节点
 export function renderComponentRoot(
   instance: ComponentInternalInstance
 ): VNode {
@@ -60,6 +61,7 @@ export function renderComponentRoot(
   } = instance
 
   let result
+  // 设置当前渲染实例
   const prev = setCurrentRenderingInstance(instance)
   if (__DEV__) {
     accessedAttrs = false
@@ -67,9 +69,11 @@ export function renderComponentRoot(
   try {
     let fallthroughAttrs
     if (vnode.shapeFlag & ShapeFlags.STATEFUL_COMPONENT) {
+      // 状态组件
       // withProxy is a proxy with a different `has` trap only for
       // runtime-compiled render functions using `with` block.
       const proxyToUse = withProxy || proxy
+      // 规范梳理Vnode
       result = normalizeVNode(
         render!.call(
           proxyToUse,
@@ -83,12 +87,15 @@ export function renderComponentRoot(
       )
       fallthroughAttrs = attrs
     } else {
+      // 函数式组件
       // functional
       const render = Component as FunctionalComponent
       // in dev, mark attrs accessed if optional props (attrs === props)
       if (__DEV__ && attrs === props) {
         markAttrsAccessed()
       }
+      // 规范梳理VNode
+      // 与状态组件的不同之处在于对参数的处理
       result = normalizeVNode(
         render.length > 1
           ? render(
@@ -114,6 +121,7 @@ export function renderComponentRoot(
     // attr merging
     // in dev mode, comments are preserved, and it's possible for a template
     // to have comments along side the root element which makes it a fragment
+    // 获取root
     let root = result
     let setRoot: ((root: VNode) => void) | undefined = undefined
     if (
@@ -125,6 +133,7 @@ export function renderComponentRoot(
     }
 
     if (fallthroughAttrs && inheritAttrs !== false) {
+      // 允许进行属性继承
       const keys = Object.keys(fallthroughAttrs)
       const { shapeFlag } = root
       if (keys.length) {
@@ -213,9 +222,11 @@ export function renderComponentRoot(
             `The directives will not function as intended.`
         )
       }
+      // 继承指令
       root.dirs = root.dirs ? root.dirs.concat(vnode.dirs) : vnode.dirs
     }
     // inherit transition data
+    // 继承转换的数据
     if (vnode.transition) {
       if (__DEV__ && !isElementRoot(root)) {
         warn(
@@ -236,7 +247,7 @@ export function renderComponentRoot(
     handleError(err, instance, ErrorCodes.RENDER_FUNCTION)
     result = createVNode(Comment)
   }
-
+  // 设置当前渲染的实例
   setCurrentRenderingInstance(prev)
   return result
 }
@@ -270,7 +281,7 @@ const getChildRoot = (
   }
   return [normalizeVNode(childRoot), setRoot]
 }
-
+// 过滤出单个子节点
 export function filterSingleRoot(
   children: VNodeArrayChildren
 ): VNode | undefined {
@@ -321,12 +332,13 @@ const isElementRoot = (vnode: VNode) => {
     vnode.type === Comment // potential v-if branch switch
   )
 }
-
+// 是否应该更新组件
 export function shouldUpdateComponent(
   prevVNode: VNode,
   nextVNode: VNode,
   optimized?: boolean
 ): boolean {
+  // 解析出props、children、component
   const { props: prevProps, children: prevChildren, component } = prevVNode
   const { props: nextProps, children: nextChildren, patchFlag } = nextVNode
   const emits = component!.emitsOptions
@@ -334,16 +346,20 @@ export function shouldUpdateComponent(
   // Parent component's render function was hot-updated. Since this may have
   // caused the child component's slots content to have changed, we need to
   // force the child to update as well.
+  // 开发环境下开始HMR默认更新
   if (__DEV__ && (prevChildren || nextChildren) && isHmrUpdating) {
     return true
   }
 
   // force child update for runtime directive or transition on component vnode.
+  // 如果存在指令或者有过度效果，更新
   if (nextVNode.dirs || nextVNode.transition) {
     return true
   }
 
   if (optimized && patchFlag >= 0) {
+    // 开启优化 并且 patchFlag >= 0
+    // 存在动态插槽  更新
     if (patchFlag & PatchFlags.DYNAMIC_SLOTS) {
       // slot content that references values that might have changed,
       // e.g. in a v-for
@@ -354,6 +370,7 @@ export function shouldUpdateComponent(
         return !!nextProps
       }
       // presence of this flag indicates props are always non-null
+      // props发生变化更新
       return hasPropsChanged(prevProps, nextProps!, emits)
     } else if (patchFlag & PatchFlags.PROPS) {
       const dynamicProps = nextVNode.dynamicProps!
@@ -396,9 +413,11 @@ function hasPropsChanged(
   emitsOptions: ComponentInternalInstance['emitsOptions']
 ): boolean {
   const nextKeys = Object.keys(nextProps)
+  // 先对比新旧props的key是否发生变化
   if (nextKeys.length !== Object.keys(prevProps).length) {
     return true
   }
+  // 再对比key所对应的value是否发生变化
   for (let i = 0; i < nextKeys.length; i++) {
     const key = nextKeys[i]
     if (

@@ -50,14 +50,15 @@ export type RawSlots = {
    */
   _?: SlotFlags
 }
-
+// 判断是否是私有key
 const isInternalKey = (key: string) => key[0] === '_' || key === '$stable'
-
+// 梳理插槽中的value
 const normalizeSlotValue = (value: unknown): VNode[] =>
   isArray(value)
     ? value.map(normalizeVNode)
     : [normalizeVNode(value as VNodeChild)]
 
+// 规范插槽
 const normalizeSlot = (
   key: string,
   rawSlot: Function,
@@ -78,6 +79,7 @@ const normalizeSlot = (
   return normalized
 }
 
+// 规范梳理对象插槽
 const normalizeObjectSlots = (
   rawSlots: RawSlots,
   slots: InternalSlots,
@@ -108,6 +110,7 @@ const normalizeObjectSlots = (
   }
 }
 
+// 规范梳理Vnode插槽
 const normalizeVNodeSlots = (
   instance: ComponentInternalInstance,
   children: VNodeNormalizedChildren
@@ -126,6 +129,7 @@ const normalizeVNodeSlots = (
   instance.slots.default = () => normalized
 }
 
+// 初始化 Slots
 export const initSlots = (
   instance: ComponentInternalInstance,
   children: VNodeNormalizedChildren
@@ -154,6 +158,7 @@ export const initSlots = (
   def(instance.slots, InternalObjectKey, 1)
 }
 
+// 更新Slots
 export const updateSlots = (
   instance: ComponentInternalInstance,
   children: VNodeNormalizedChildren,

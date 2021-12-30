@@ -120,9 +120,11 @@ export function invokeDirectiveHook(
   instance: ComponentInternalInstance | null,
   name: keyof ObjectDirective
 ) {
+  // 获取新旧指令集合
   const bindings = vnode.dirs!
   const oldBindings = prevVNode && prevVNode.dirs!
   for (let i = 0; i < bindings.length; i++) {
+    // 遍历指令拿回去了
     const binding = bindings[i]
     if (oldBindings) {
       binding.oldValue = oldBindings[i].value
@@ -135,6 +137,7 @@ export function invokeDirectiveHook(
       // disable tracking inside all lifecycle hooks
       // since they can potentially be called inside effects.
       pauseTracking()
+      // 执行指令钩子
       callWithAsyncErrorHandling(hook, instance, ErrorCodes.DIRECTIVE_HOOK, [
         vnode.el,
         binding,

@@ -19,6 +19,7 @@ export let currentScopeId: string | null = null
  * setCurrentRenderingInstance(prev)
  * ```
  */
+// 设置当前渲染实例
 export function setCurrentRenderingInstance(
   instance: ComponentInternalInstance | null
 ): ComponentInternalInstance | null {
@@ -67,6 +68,7 @@ export type ContextualRenderFn = {
  * Wrap a slot function to memoize current rendering instance
  * @private compiler helper
  */
+// 包裹一个slot 函数 缓存当前渲染实例
 export function withCtx(
   fn: Function,
   ctx: ComponentInternalInstance | null = currentRenderingInstance,
@@ -78,7 +80,7 @@ export function withCtx(
   if ((fn as ContextualRenderFn)._n) {
     return fn
   }
-
+  
   const renderFnWithContext: ContextualRenderFn = (...args: any[]) => {
     // If a user calls a compiled slot inside a template expression (#1745), it
     // can mess up block tracking, so by default we disable block tracking and

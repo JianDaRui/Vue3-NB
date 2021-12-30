@@ -257,7 +257,7 @@ export interface ComponentRenderContext {
   [key: string]: any
   _: ComponentInternalInstance
 }
-
+// 公共实例代理handler
 export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
   get({ _: instance }: ComponentRenderContext, key: string) {
     const {
@@ -462,7 +462,7 @@ if (__DEV__ && !__TEST__) {
     return Reflect.ownKeys(target)
   }
 }
-
+// 运行时公共实例代理handler
 export const RuntimeCompiledPublicInstanceProxyHandlers = extend(
   {},
   PublicInstanceProxyHandlers,
@@ -491,10 +491,12 @@ export const RuntimeCompiledPublicInstanceProxyHandlers = extend(
 // In dev mode, the proxy target exposes the same properties as seen on `this`
 // for easier console inspection. In prod mode it will be an empty object so
 // these properties definitions can be skipped.
+// 创建渲染上下文
 export function createRenderContext(instance: ComponentInternalInstance) {
   const target: Record<string, any> = {}
 
   // expose internal instance for proxy handlers
+  // 为 代理handlers设置私有实例属性
   Object.defineProperty(target, `_`, {
     configurable: true,
     enumerable: false,
@@ -502,6 +504,7 @@ export function createRenderContext(instance: ComponentInternalInstance) {
   })
 
   // expose public properties
+  // 暴露公共属性
   Object.keys(publicPropertiesMap).forEach(key => {
     Object.defineProperty(target, key, {
       configurable: true,
