@@ -87,12 +87,14 @@ export function withDirectives<T extends VNode>(
   vnode: T,
   directives: DirectiveArguments
 ): T {
+  // 获取正在渲染的实例
   const internalInstance = currentRenderingInstance
   if (internalInstance === null) {
     __DEV__ && warn(`withDirectives can only be used inside render functions.`)
     return vnode
   }
   const instance = internalInstance.proxy
+  // 指令集合
   const bindings: DirectiveBinding[] = vnode.dirs || (vnode.dirs = [])
   for (let i = 0; i < directives.length; i++) {
     let [dir, value, arg, modifiers = EMPTY_OBJ] = directives[i]
@@ -124,7 +126,7 @@ export function invokeDirectiveHook(
   const bindings = vnode.dirs!
   const oldBindings = prevVNode && prevVNode.dirs!
   for (let i = 0; i < bindings.length; i++) {
-    // 遍历指令拿回去了
+    // 遍历指令
     const binding = bindings[i]
     if (oldBindings) {
       binding.oldValue = oldBindings[i].value

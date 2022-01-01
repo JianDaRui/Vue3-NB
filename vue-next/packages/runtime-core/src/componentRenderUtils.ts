@@ -373,6 +373,7 @@ export function shouldUpdateComponent(
       // props发生变化更新
       return hasPropsChanged(prevProps, nextProps!, emits)
     } else if (patchFlag & PatchFlags.PROPS) {
+      // 动态属性
       const dynamicProps = nextVNode.dynamicProps!
       for (let i = 0; i < dynamicProps.length; i++) {
         const key = dynamicProps[i]
@@ -401,12 +402,13 @@ export function shouldUpdateComponent(
     if (!nextProps) {
       return true
     }
+    // 判断属性是否发变化
     return hasPropsChanged(prevProps, nextProps, emits)
   }
 
   return false
 }
-
+// 对比props是否发生变化
 function hasPropsChanged(
   prevProps: Data,
   nextProps: Data,
@@ -420,6 +422,8 @@ function hasPropsChanged(
   // 再对比key所对应的value是否发生变化
   for (let i = 0; i < nextKeys.length; i++) {
     const key = nextKeys[i]
+    // 新旧prop的value不同 && 
+    // 不是监听事件
     if (
       nextProps[key] !== prevProps[key] &&
       !isEmitListener(emitsOptions, key)

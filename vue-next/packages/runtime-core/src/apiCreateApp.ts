@@ -259,6 +259,7 @@ export function createAppAPI<HostElement>(
         return app
       },
       // 配置全局指令
+      // name 是指令名称 directive 是指令配置
       directive(name: string, directive?: Directive) {
         if (__DEV__) {
           validateDirectiveName(name)
