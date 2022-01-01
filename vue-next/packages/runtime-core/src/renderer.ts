@@ -2559,7 +2559,8 @@ function baseCreateRenderer(
     createApp: createAppAPI(render, hydrate)
   }
 }
-
+// 调用Vnode钩子函数
+// 本质就是异步的去执行hook
 export function invokeVNodeHook(
   hook: VNodeHook,
   instance: ComponentInternalInstance | null,
@@ -2583,6 +2584,7 @@ export function invokeVNodeHook(
  * the children will always moved so that need inherit el form previous nodes
  * to ensure correct moved position.
  */
+//
 export function traverseStaticChildren(n1: VNode, n2: VNode, shallow = false) {
   const ch1 = n1.children
   const ch2 = n2.children
@@ -2609,6 +2611,7 @@ export function traverseStaticChildren(n1: VNode, n2: VNode, shallow = false) {
 }
 
 // https://en.wikipedia.org/wiki/Longest_increasing_subsequence
+// 获取序列
 function getSequence(arr: number[]): number[] {
   const p = arr.slice()
   const result = [0]
