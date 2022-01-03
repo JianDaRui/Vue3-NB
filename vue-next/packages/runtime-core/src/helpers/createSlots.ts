@@ -10,6 +10,7 @@ interface CompiledSlotDescriptor {
  * Compiler runtime helper for creating dynamic slots object
  * @private
  */
+//  创建插槽
 export function createSlots(
   slots: Record<string, Slot>,
   dynamicSlots: (

@@ -50,6 +50,8 @@ export function renderList<T>(
 /**
  * Actual implementation
  */
+// 渲染列表 可以遍历渲染 string number array object 可迭代对象
+// 本质上是通过参数renderItem渲染的每个节点
 export function renderList(
   source: any,
   renderItem: (...args: any[]) => VNodeChild

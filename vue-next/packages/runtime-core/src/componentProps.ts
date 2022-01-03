@@ -386,7 +386,7 @@ function setFullProps(
 
   return hasAttrsChanged
 }
-
+// 解析prop对应的value
 function resolvePropValue(
   options: NormalizedProps,
   props: Data,
@@ -434,7 +434,7 @@ function resolvePropValue(
   }
   return value
 }
-
+// 规范梳理Props OPtions
 export function normalizePropsOptions(
   comp: ConcreteComponent,
   appContext: AppContext,
@@ -451,6 +451,7 @@ export function normalizePropsOptions(
   const needCastKeys: NormalizedPropsOptions[1] = []
 
   // apply mixin/extends props
+  // 绑定混入或者继承的props
   let hasExtends = false
   if (__FEATURE_OPTIONS_API__ && !isFunction(comp)) {
     const extendProps = (raw: ComponentOptions) => {
@@ -462,12 +463,15 @@ export function normalizePropsOptions(
       extend(normalized, props)
       if (keys) needCastKeys.push(...keys)
     }
+    // 处理自身的
     if (!asMixin && appContext.mixins.length) {
       appContext.mixins.forEach(extendProps)
     }
+    // 处理继承
     if (comp.extends) {
       extendProps(comp.extends)
     }
+    // 处理混入
     if (comp.mixins) {
       comp.mixins.forEach(extendProps)
     }
@@ -533,7 +537,7 @@ function getType(ctor: Prop<any>): string {
   const match = ctor && ctor.toString().match(/^\s*function (\w+)/)
   return match ? match[1] : ''
 }
-
+// 是否是相同类型
 function isSameType(a: Prop<any>, b: Prop<any>): boolean {
   return getType(a) === getType(b)
 }
@@ -561,6 +565,7 @@ function validateProps(
   const resolvedValues = toRaw(props)
   const options = instance.propsOptions[0]
   for (const key in options) {
+    // 遍历option 进行校验
     let opt = options[key]
     if (opt == null) continue
     validateProp(
@@ -592,6 +597,7 @@ function validateProp(
     return
   }
   // type check
+  // 类型检查
   if (type != null && type !== true) {
     let isValid = false
     const types = isArray(type) ? type : [type]
@@ -607,7 +613,7 @@ function validateProp(
       return
     }
   }
-  // custom validator
+  // custom validator 自定义校验器
   if (validator && !validator(value)) {
     warn('Invalid prop: custom validator check failed for prop "' + name + '".')
   }
@@ -651,6 +657,7 @@ function assertType(value: unknown, type: PropConstructor): AssertionResult {
 /**
  * dev only
  */
+// 获取校验信息
 function getInvalidTypeMessage(
   name: string,
   value: unknown,
@@ -661,7 +668,9 @@ function getInvalidTypeMessage(
     ` Expected ${expectedTypes.map(capitalize).join(', ')}`
   const expectedType = expectedTypes[0]
   const receivedType = toRawType(value)
+  // 期望的值
   const expectedValue = styleValue(value, expectedType)
+  // 接受的值
   const receivedValue = styleValue(value, receivedType)
   // check if we need to specify expected value
   if (
@@ -703,6 +712,7 @@ function isExplicable(type: string): boolean {
 /**
  * dev only
  */
+// 是否是布尔类型
 function isBoolean(...args: string[]): boolean {
   return args.some(elem => elem.toLowerCase() === 'boolean')
 }

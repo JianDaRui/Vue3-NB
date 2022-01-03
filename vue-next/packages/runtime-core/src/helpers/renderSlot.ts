@@ -16,6 +16,7 @@ import { warn } from '../warning'
  * Compiler runtime helper for rendering `<slot/>`
  * @private
  */
+// 内部使用的函数 并不是暴露给用户的
 export function renderSlot(
   slots: Slots,
   name: string,
@@ -44,6 +45,7 @@ export function renderSlot(
     ;(slot as ContextualRenderFn)._d = false
   }
   openBlock()
+  // 校验插槽内容
   const validSlotContent = slot && ensureValidVNode(slot(props))
   const rendered = createBlock(
     Fragment,
