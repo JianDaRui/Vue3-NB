@@ -139,7 +139,7 @@ patch思路，可以看作一个深度优先遍历。与深度克隆的逻辑非
 
 ## Text类型
 
-![处理文本类型](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/processText.png)
+![处理文本类型](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/Text.png)
 
 
 
@@ -151,7 +151,7 @@ patch思路，可以看作一个深度优先遍历。与深度克隆的逻辑非
 
 ## Comment类型
 
-![注释类型节点](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/comment.png)
+![注释类型节点](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/Comment.png)
 
 - 匹配到Comment类型Vnode
 - 调用ProcessCommentNode函数
@@ -160,7 +160,7 @@ patch思路，可以看作一个深度优先遍历。与深度克隆的逻辑非
 
 ## Static类型
 
-![Static](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/静态.png)
+![Static](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/Static.png)
 
 - 我们知道Vue3的性能提升，有部分原因就是得益于对静态节点的处理。
 - patch过程中，匹配到Static类型节点。
@@ -171,11 +171,11 @@ patch思路，可以看作一个深度优先遍历。与深度克隆的逻辑非
 
 ## Fragment类型
 
-![Fragment](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/Fragment.png)
+![Fragment](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/fragment.png)
 
 - 匹配到Fragment类型节点
 - 会调用processFragment函数，进行处理
-- Fragment节点，其实是Vue3中新增的Fragment组件，可以包裹多个节点，但是并不会渲染Fragment节点。
+- Fragment节点，Fragment是Vue3中新增的Fragment组件，可以包裹多个子节点，但是并不会渲染Fragment节点。
 - 所以在渲染过程中主要处理的事Fragmemt包裹的子节点
 - 如果n1不存在，会执行mountChildren，对子节点进行挂载。
   - mountChildren会对子节点进行遍历操作，递归调用patch函数。
@@ -188,7 +188,7 @@ patch思路，可以看作一个深度优先遍历。与深度克隆的逻辑非
 
 ## Element 类型
 
-![Element](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/Element.png)
+![Element](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/element.png)
 
 - 匹配到Element类型
 - 会调用processElement函数
@@ -205,16 +205,30 @@ patch思路，可以看作一个深度优先遍历。与深度克隆的逻辑非
 
 ## Component 类型
 
-![Component](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/Component.png)
+![Component](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/component.png)
 
+- 通常情况下，我们都会给createApp传递一个组件
+- 故当render函数执行patch时，首先会匹配到组件类型的节点
+- 如果是组件类型，会调用processComponent函数进行处理
+- 首先会判断n1是否存在
+- 如果存在会进一步判断
+  - 该组件是否是被Keep-Alive包裹的组件
+  - 如果是，则会执行组件的activate钩子
+  - 否则会调用mountComponent函数，对组件进行挂载
+  - mountComponent函数涉及的层级较深，这里先不展开说
+  - 但是要知道这个阶段会完成组件解析、编译与转换，病会创建一个渲染级别的effect
+  - 用于负责组件的更新，这里我暂时将其称为updateEffect
+- 否则会执行updateComponent函数，判断组件是否需要进行更细
+  - 主要会对组件的新旧Props、子节点进行判断
+  - 如果发生变化，会调用mountComponent阶段创建的updateEffect，出发响应式系统
+  - 否则直接原有的直接进行覆盖
 
+## Teleport类型 & Suspense类型
 
-Teleport
+![Teleport](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/teleport&suspense.png)
 
-![Teleport](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/Teleport.png)
-
-Suspense
-
-
-
-![Suspense](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/Suspense.png)
+- Teleport 与 Suspense组件是Vue3内置的两个组件
+- 如果匹配到以上两种，会调用组件实例上的process方法
+- porcess方法的主要逻辑与前面的相同
+- 首先会判断原有Vnode是否存在，不存在则mount，存在则patch
+- 这两种类型的详细处理方式，我们会在分析这两个组件的源码的时候会进行分析
