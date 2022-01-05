@@ -1,8 +1,10 @@
-# baseCreateRenderer 分析
+# 渲染器分析
 
-在上一篇中，我们知道render函数主要是通过baseCreaterenderer创建的。当通过createApp API 创建的组件实例调用mount方法挂载组件的时候，其实mount方法也会去调用render方法。
+在上一篇中，我们知道render函数最终是通过baseCreaterenderer创建的。
 
-通过render方法完成组件的渲染工作。
+当通过createApp API 创建的组件实例调用mount方法挂载组件的时候，其实mount方法也是通过调用render方法。
+
+完成组件的渲染工作。
 
 
 
@@ -12,31 +14,33 @@ baseCreateRenderer函数的整体代码大概有一千多行。
 
 包含的信息相当丰富。
 
-纵向扩展，可以学习了解到Vnode的patch过程、diff方式。
+纵向扩展，可以学习到Vnode的patch过程、虚拟DOM的diff方式、指令的调用方式。
 
-深度扩展，可以学完template的解析、转换与生成，甚至响应式系统。
+深度扩展，可以学完template的解析、转换与生成，任务调度器的执行过程、甚至响应式系统。
 
-还有就是写完，可以补上前面好多留的坑。
+还有就是写完，可以补上前面好多留的坑😂。
 
-这次我们先纵向学习，了解该函数在Vue中主要做了什么。后面在深入。
+这次我们先纵向学习，了解该函数在Vue中主要做了什么。后面在逐步深入。
 
 ## 前文回顾
 
-上篇文章中，我们知道app实例是通过createApp API创建的，createApp将*ensureRenderer*函数返回的对象中的app属性做了一些处理之后。在返回给用户，也就是app。
+上篇文章中，我们知道app实例是通过createApp API创建的，createApp将*createRenderer*函数返回的对象中的app属性做了一些处理之后。再返回给用户。
 
-而ensureRenderer最终是调用的baseCreateRenderer函数，并给baseCreateRenderer函数传递了一个用于配置渲染器的options对象，这个对象中包含了DOM的处理方法 & 属性的patch方法。
+而createRenderer其实调用的是baseCreateRenderer函数，并给baseCreateRenderer函数传递了一个用于配置渲染器的options对象。
 
-而baseCreateRenderer函数返回的对象中，包含render 渲染函数、hydrate用于服务端渲染的注水函数、createApp函数。
+这个options对象中包含了DOM的处理方法 & 属性的patch方法。
 
-当我们调用app实例上的mount方法时，其实会执行render函数来完成Vnode的渲染工作。
+而baseCreateRenderer函数返回的对象中，包含render渲染函数、hydrate用于服务端渲染的注水函数、createApp函数。
 
-在执行render函数前，会根据组件创建响应的Vnode。
+Vue3顺带的将render方法设定为API，方便高阶玩家自由发挥。
 
-将Vnode、挂载元素传给render。
+当我们调用app实例上的mount方法时。
 
-至此就开启了渲染工作。
+会根据挂载的组件创建对应的Vnode。
 
+将Vnode、挂载元素el传给render函数。
 
+最终通过render函数完成组件的渲染工作。
 
 ## 解构配置项
 
@@ -60,8 +64,6 @@ baseCreateRenderer函数的整体代码大概有一千多行。
   cloneNode: hostCloneNode,
   insertStaticContent: hostInsertStaticContent
 ```
-
-
 
 ## 渲染逻辑
 
@@ -110,8 +112,6 @@ render函数的设计思想，基本就代表了vue处理各种类型节点的�
 - 否则调用patch函数，对组件进行patch
 - patch 结束后，会调用flushPostFlushCbs函数冲刷任务池
 - 最后更新容器上的Vnode
-
-
 
 ## patch Vnode
 
@@ -186,7 +186,7 @@ patch思路，可以看作一个深度优先遍历。与深度克隆的逻辑非
   - 否则会调用patchChildren函数，对子节点进行patch
   - patchChildren在执行的过程中涉及到了DOM的diff过程，这里暂时不展开分析，后面会出单独进行分析
 
-## Element 类型
+## Element类型
 
 ![Element](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/element.png)
 
@@ -203,7 +203,7 @@ patch思路，可以看作一个深度优先遍历。与深度克隆的逻辑非
     - 并调用*queuePostRenderEffect*函数，向任务调度池中的后置执行阶段push生命周期钩子updated。
     - 这里需要对子节点处理的原因是因为Element的子节点中，也可能还有组件或者其他类型的节点
 
-## Component 类型
+## Component类型
 
 ![Component](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/component.png)
 
