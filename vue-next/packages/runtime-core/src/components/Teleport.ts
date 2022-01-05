@@ -95,6 +95,7 @@ export const TeleportImpl = {
 
     if (n1 == null) {
       // insert anchors in the main view
+      // 在视图中插入节点
       const placeholder = (n2.el = __DEV__
         ? createComment('teleport start')
         : createText(''))
@@ -116,7 +117,9 @@ export const TeleportImpl = {
       const mount = (container: RendererElement, anchor: RendererNode) => {
         // Teleport *always* has Array children. This is enforced in both the
         // compiler and vnode children normalization.
+        // teleport总是有一个数组子节点
         if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
+          // 挂载子节点
           mountChildren(
             children as VNodeArrayChildren,
             container,
@@ -137,6 +140,7 @@ export const TeleportImpl = {
       }
     } else {
       // update content
+      // 更新操作
       n2.el = n1.el
       const mainAnchor = (n2.anchor = n1.anchor)!
       const target = (n2.target = n1.target)!
@@ -147,6 +151,7 @@ export const TeleportImpl = {
       isSVG = isSVG || isTargetSVG(target)
 
       if (dynamicChildren) {
+        // 如果存在动态子节点
         // fast path when the teleport happens to be a block root
         patchBlockChildren(
           n1.dynamicChildren!,
@@ -162,6 +167,7 @@ export const TeleportImpl = {
         // be moved in future patches.
         traverseStaticChildren(n1, n2, true)
       } else if (!optimized) {
+        // 不需要优化的操作
         patchChildren(
           n1,
           n2,
@@ -244,6 +250,7 @@ export const TeleportImpl = {
       if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
         for (let i = 0; i < (children as VNode[]).length; i++) {
           const child = (children as VNode[])[i]
+          // 遍历卸载子组件
           unmount(
             child,
             parentComponent,

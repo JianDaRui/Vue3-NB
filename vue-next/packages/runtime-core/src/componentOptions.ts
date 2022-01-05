@@ -927,7 +927,7 @@ export function resolveMergedOptions(
   cache.set(base, resolved)
   return resolved
 }
-
+// 递归合并配置项
 export function mergeOptions(
   to: any,
   from: any,

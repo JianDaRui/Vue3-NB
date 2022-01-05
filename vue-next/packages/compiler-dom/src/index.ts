@@ -27,16 +27,16 @@ export const DOMNodeTransforms: NodeTransform[] = [
   transformStyle,
   ...(__DEV__ ? [warnTransitionChildren] : [])
 ]
-
+//转换指令配置
 export const DOMDirectiveTransforms: Record<string, DirectiveTransform> = {
   cloak: noopDirectiveTransform,
   html: transformVHtml,
   text: transformVText,
   model: transformModel, // override compiler-core
   on: transformOn, // override compiler-core
-  show: transformShow
+  show: transformShow 
 }
-
+// 编译
 export function compile(
   template: string,
   options: CompilerOptions = {}
@@ -61,7 +61,7 @@ export function compile(
     })
   )
 }
-
+// 解析
 export function parse(template: string, options: ParserOptions = {}): RootNode {
   return baseParse(template, extend({}, parserOptions, options))
 }
