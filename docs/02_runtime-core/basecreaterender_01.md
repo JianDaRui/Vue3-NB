@@ -44,7 +44,9 @@ Vue3顺带的将render方法设定为API，方便高阶玩家自由发挥。
 
 ## 解构配置项
 
-为了方便内部patch函数的使用，baseCreateRenderer函数首先对options进行了解构，options主要包含的方法是对DOM的创建、插入、移动、设置、获取父节点、克隆节点、patch 属性等方法
+为了方便内部patch函数的使用，baseCreateRenderer函数首先对options进行了解构.
+
+options主要包含的方法是对DOM的创建、插入、移动、设置、获取父节点、克隆节点、patch 属性等方法。
 
 这里我们需要先简单熟悉下：
 
@@ -115,17 +117,17 @@ render函数的设计思想，基本就代表了vue处理各种类型节点的�
 
 ## patch Vnode
 
-首先我们知道Vnode有不同的类型，在这里我将其分为：
+Vnode有不同的类型，在这里我将其分为：
 
 - 简单类型：文本、注释、Static。
 
-- 复杂类型：组件、Fragment、Component、Teleport、Suspense这几种类型的节点。
+- 复杂类型：组件、Fragment、Component、Teleport、Suspense。
 
 patch思路，可以看作一个深度优先遍历。与深度克隆的逻辑非常相似。
 
 简单类型就相当于JS中的原始数据类型：字符串、数字、布尔。
 
-复杂类型就相当于JS中的引用类型：对象、数组、函数。
+复杂类型就相当于JS中的引用类型：对象、数组、Map、Set。
 
 
 
@@ -145,16 +147,16 @@ patch思路，可以看作一个深度优先遍历。与深度克隆的逻辑非
 
 - 匹配到Text类型Vnode。
 - 会调用ProcessText函数对节点进行处理。
-- ProcessText函数首先会判断n1是否存在
-- 不存在，说明是第一次执行，直接进行文本插入
-- 存在的话，新旧文本不同，会设置新的Text
+- ProcessText函数首先会判断n1是否存在。
+- 不存在，说明是第一次执行，直接进行文本插入。
+- 新旧，新旧文本不同，会设置新的Text。
 
 ## Comment类型
 
 ![注释类型节点](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/Comment.png)
 
 - 匹配到Comment类型Vnode
-- 调用ProcessCommentNode函数
+- 调用processCommentNode函数
 - 如果n1不存在，则执行插入工作
 - 否则直接新的覆盖旧的，因为注释节点并不需要在页面中进行展示，不必做多余的渲染工作
 
@@ -173,14 +175,14 @@ patch思路，可以看作一个深度优先遍历。与深度克隆的逻辑非
 
 ![Fragment](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/fragment.png)
 
-- 匹配到Fragment类型节点
-- 会调用processFragment函数，进行处理
+- 匹配到Fragment类型节点。
+- 会调用processFragment函数，进行处理。
 - Fragment节点，Fragment是Vue3中新增的Fragment组件，可以包裹多个子节点，但是并不会渲染Fragment节点。
-- 所以在渲染过程中主要处理的事Fragmemt包裹的子节点
+- 所以在渲染过程中主要处理的事Fragmemt包裹的子节点。
 - 如果n1不存在，会执行mountChildren，对子节点进行挂载。
   - mountChildren会对子节点进行遍历操作，递归调用patch函数。
 - 如果n1存在，会对子节点再进行进一步的判断
-  -  如果patchFlag存在 && 存在动态节点
+  - 如果patchFlag存在 && 存在动态节点
   - 则会调用patchBlockChildren，对子节点进行patch，
   - patchBlockChildren会遍历子节点，递归调用patch函数
   - 否则会调用patchChildren函数，对子节点进行patch
@@ -193,7 +195,7 @@ patch思路，可以看作一个深度优先遍历。与深度克隆的逻辑非
 - 匹配到Element类型
 - 会调用processElement函数
 - n1不存在，会执行mountElement函数，对Vnode进行挂载
-  - mountElement在挂载Vnode过程中，会调用mountChildren函数，对子节点进行递归挂载处理。
+  - mountElement在挂载Vnode过程中，会通过mountChildren，对子节点进行递归挂载处理。
   - 并会对Vnode的prop进行patch。
   - 并调用*queuePostRenderEffect*函数，向任务调度池中的后置执行阶段push生命周期钩子mounted。
 - 否则会执行patchElement函数，对element进行patch，patchElement函数主要会执行以下任务：
