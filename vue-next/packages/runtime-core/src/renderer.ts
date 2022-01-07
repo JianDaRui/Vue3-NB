@@ -2445,6 +2445,7 @@ function baseCreateRenderer(
     if (update) {
       // 卸载响应式渲染effect
       stop(update)
+      // 卸载子组件
       unmount(subTree, instance, parentSuspense, doRemove)
     }
     // unmounted hook
@@ -2518,7 +2519,7 @@ function baseCreateRenderer(
     if (vnode == null) {
       // 如果没有Vnode，则卸载原来的Vnode
       if (container._vnode) {
-        (container._vnode, null, null, true)
+        unmount(container._vnode, null, null, true)
       }
     } else {
       // 存在则对新旧Vnode进行patch
