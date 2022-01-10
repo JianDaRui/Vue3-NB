@@ -2065,7 +2065,7 @@ function baseCreateRenderer(
     // [i ... e1 + 1]: a b [c d e] f g
     // [i ... e2 + 1]: a b [e d c h] f g
     // i = 2, e1 = 4, e2 = 5
-    // 对于未知的序列情况
+    // 对于乱序情况
     else {
       const s1 = i // prev starting index
       const s2 = i // next starting index
@@ -2073,6 +2073,7 @@ function baseCreateRenderer(
       // 5.1 build key:index map for newChildren
       // 通过map 创建的新的子节点
       const keyToNewIndexMap: Map<string | number, number> = new Map()
+      // 遍历新的节点，为新节点设置key
       for (i = s2; i <= e2; i++) {
         const nextChild = (c2[i] = optimized
           ? cloneIfMounted(c2[i] as VNode)
