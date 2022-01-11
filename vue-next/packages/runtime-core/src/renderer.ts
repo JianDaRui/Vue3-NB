@@ -1960,6 +1960,7 @@ function baseCreateRenderer(
     // (a b) c
     // (a b) d e
     // 开始位置相同的情况
+    //  i <= 2 && i <= 3
     while (i <= e1 && i <= e2) {
       const n1 = c1[i]
       const n2 = (c2[i] = optimized
@@ -1988,6 +1989,8 @@ function baseCreateRenderer(
     // 2. sync from end
     // a (b c)
     // d e (b c)
+    //  i <= 2 && i <= 3
+    // e1 = 0 e2 =  1
     // 如果是结束位置是相同的
     while (i <= e1 && i <= e2) {
       const n1 = c1[e1]
@@ -2067,14 +2070,15 @@ function baseCreateRenderer(
     // i = 2, e1 = 4, e2 = 5
     // 对于乱序情况
     else {
-      const s1 = i // prev starting index
-      const s2 = i // next starting index
+      const s1 = i // prev starting index; s1 = 2
+      const s2 = i // next starting index; s2 = 2
 
       // 5.1 build key:index map for newChildren
-      // 首先为新的子节点构建 key：index 的映射
+      // 首先为新的子节点构建在新的子序列中 key：index 的映射
       // 通过map 创建的新的子节点
       const keyToNewIndexMap: Map<string | number, number> = new Map()
       // 遍历新的节点，为新节点设置key
+      // i = 2; i <= 5
       for (i = s2; i <= e2; i++) {
         const nextChild = (c2[i] = optimized
           ? cloneIfMounted(c2[i] as VNode)
@@ -2088,6 +2092,7 @@ function baseCreateRenderer(
             )
           }
           // nextChild.key 已存在
+          // a b [e d c h] f g
           // e:2 d:3 c:4 h:5
           keyToNewIndexMap.set(nextChild.key, i)
         }
@@ -2110,6 +2115,7 @@ function baseCreateRenderer(
       let maxNewIndexSoFar = 0
 
       // works as Map<newIndex, oldIndex>
+      // 作新旧节点的下表映射
       // Note that oldIndex is offset by +1
       // 注意 旧节点的index 都要偏移一个下标
 
@@ -2118,17 +2124,21 @@ function baseCreateRenderer(
       // 并且旧节点Index = 0 是一个特殊的值，用于表示新的节点中没有对应的旧节点
       
       // used for determining longest stable subsequence
-      // 用于确定最长递增子序列
+      // newIndexToOldIndexMap 用于确定最长递增子序列
       // 新下标与旧下标的map
       const newIndexToOldIndexMap = new Array(toBePatched)
       // 将所有的值初始化为0
       // [0, 0, 0, 0]
       for (i = 0; i < toBePatched; i++) newIndexToOldIndexMap[i] = 0
+
       // i = 2； i <= 4
+      // 开始遍历旧的节点
       for (i = s1; i <= e1; i++) {
         // 获取旧节点
+        // 会逐个获取 c d e
         const prevChild = c1[i]
         // 如果已经patch 的数量 >= 需要进行patch的
+        // patched刚开始为 0
         // patched >= 4
         if (patched >= toBePatched) {
           // all new children have been patched so this can only be a removal
@@ -2136,13 +2146,14 @@ function baseCreateRenderer(
           unmount(prevChild, parentComponent, parentSuspense, true)
           continue
         }
-
+        // 新节点下标
         let newIndex
         if (prevChild.key != null) {
-          // 旧的节点有key, 根据旧节点获取在新的子节队列中对应的节点的位置
+          // 旧的节点肯定有key, 
+          // 根据旧节点key  获取相同类型的新的子节点  在 新的队列中对应节点位置
           // 这个时候 因为c d e 是原来的节点 并且有key
-          // h 是新增节点 旧节点中没有 获取不到 对应的index
-          // 会走else
+          // h 是新增节点 旧节点中没有 获取不到 对应的index 会走else
+          // 所以newIndex在开始时会有如下情况
           /**
            * node  newIndex
            *  c       4
@@ -2153,7 +2164,8 @@ function baseCreateRenderer(
           newIndex = keyToNewIndexMap.get(prevChild.key)
         } else {
           // key-less node, try to locate a key-less node of the same type
-          // 如果节点没有key，尽量去没有key的节点队列中查找相同类型的节点
+          // 如果旧的节点没有key
+          // 则会查找没有key的 且为相同类型的新节点在 新节点队列中 的位置
           // j = 2: j <= 5
           for (j = s2; j <= e2; j++) {
             if (
@@ -2161,7 +2173,7 @@ function baseCreateRenderer(
               // 判断是否是新旧节点是否相同
               isSameVNodeType(prevChild, c2[j] as VNode)
             ) {
-              // 获取到相同类型节点的下表
+              // 获取到相同类型节点的下标
               newIndex = j
               break
             }
@@ -2171,16 +2183,20 @@ function baseCreateRenderer(
           // 没有对应的新节点 卸载旧的
           unmount(prevChild, parentComponent, parentSuspense, true)
         } else {
+          // 这里处理获取到newIndex的情况
+          // 开始整理新节点下标 Index 对于 相同类型旧节点在 旧队列中的映射
+          // 新节点下标从 s2=2 开始，对应的旧节点下标需要偏移一个下标
+          // 0 表示当前节点没有对应的旧节点
           // 偏移 1个位置 i从 s1 = 2 开始，s2 = 2
-          // 4 - 2 获取下标 2， 对应 3
-          // 3 - 2 获取下标 1，对应 4
-          // 2 - 2 获取下标 0， 对应 5
+          // 4 - 2 获取下标 2，新的 c 节点对应旧 c 节点的位置下标 3
+          // 3 - 2 获取下标 1，新的 d 节点对应旧 d 节点的位置下标 4
+          // 2 - 2 获取下标 0，新的 e 节点对应旧 e 节点的位置下标 5
           // [0, 0, 0, 0] => [5, 4, 3, 0]
           newIndexToOldIndexMap[newIndex - s2] = i + 1
           // newIndex 会取 4 3 2
           /** 
            *   newIndex  maxNewIndexSoFar   moved
-           *       4            4           false
+           *       4            0           false
            *       3            4           true
            *       2        
            * 
@@ -2221,7 +2237,7 @@ function baseCreateRenderer(
       const increasingNewIndexSequence = moved
         ? getSequence(newIndexToOldIndexMap)
         : EMPTY_ARR
-      
+      // j = 3
       j = increasingNewIndexSequence.length - 1
       // looping backwards so that we can use last patched node as anchor
       // 从后向前遍历 以便于可惜用最新的被patch的节点作为锚点
@@ -2255,6 +2271,7 @@ function baseCreateRenderer(
           // OR current node is not among the stable sequence
           // 如果没有最长递增子序列或者 当前节点不在递增子序列中间
           // 则移动节点
+          // 
           if (j < 0 || i !== increasingNewIndexSequence[j]) {
             move(nextChild, container, anchor, MoveType.REORDER)
           } else {
