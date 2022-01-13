@@ -1113,7 +1113,6 @@ function baseCreateRenderer(
   }
 
   // The fast path for blocks.
-
   const patchBlockChildren: PatchBlockChildrenFn = (
     oldChildren,
     newChildren,
@@ -2080,6 +2079,7 @@ function baseCreateRenderer(
       // 遍历新的节点，为新节点设置key
       // i = 2; i <= 5
       for (i = s2; i <= e2; i++) {
+        // 获取的是新节点
         const nextChild = (c2[i] = optimized
           ? cloneIfMounted(c2[i] as VNode)
           : normalizeVNode(c2[i]))
@@ -2192,11 +2192,12 @@ function baseCreateRenderer(
           // 3 - 2 获取下标 1，新的 d 节点对应旧 d 节点的位置下标 4
           // 2 - 2 获取下标 0，新的 e 节点对应旧 e 节点的位置下标 5
           // [0, 0, 0, 0] => [5, 4, 3, 0]
+          // [2,3,4,5] = [5, 4, 3, 0]
           newIndexToOldIndexMap[newIndex - s2] = i + 1
           // newIndex 会取 4 3 2
           /** 
            *   newIndex  maxNewIndexSoFar   moved
-           *       4            0           false
+           *       4            0          false
            *       3            4           true
            *       2        
            * 
@@ -2234,13 +2235,14 @@ function baseCreateRenderer(
       // 当节点已经被移动且mount
       // 仅当节点被移动后 生成最长递增子序列
       // 经过上面操作后，[5, 4, 3, 0]
+      // [2]
       const increasingNewIndexSequence = moved
         ? getSequence(newIndexToOldIndexMap)
         : EMPTY_ARR
-      // j = 3
+      // j = 0
       j = increasingNewIndexSequence.length - 1
       // looping backwards so that we can use last patched node as anchor
-      // 从后向前遍历 以便于可惜用最新的被patch的节点作为锚点
+      // 从后向前遍历 以便于可以用最新的被patch的节点作为锚点
       // i = 3
       for (i = toBePatched - 1; i >= 0; i--) {
         // 5 4 3 2 1
@@ -2707,13 +2709,16 @@ function getSequence(arr: number[]): number[] {
   const len = arr.length
   for (i = 0; i < len; i++) {
     const arrI = arr[i]
+    // 直接跳过新增节点
     if (arrI !== 0) {
       j = result[result.length - 1]
       if (arr[j] < arrI) {
         p[i] = j
+        // 保存对应节点下标
         result.push(i)
         continue
       }
+      // 二分查找
       u = 0
       v = result.length - 1
       while (u < v) {
@@ -2728,6 +2733,7 @@ function getSequence(arr: number[]): number[] {
         if (u > 0) {
           p[i] = result[u - 1]
         }
+        // 保存对应节点下标
         result[u] = i
       }
     }
