@@ -1753,7 +1753,6 @@ function baseCreateRenderer(
     flushPreFlushCbs(undefined, instance.update)
     resetTracking()
   }
-  // patchChildren
   const patchChildren: PatchChildrenFn = (
     n1,
     n2,
