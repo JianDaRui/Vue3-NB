@@ -22,7 +22,7 @@
 - 如果`oldLength > newLength`，说明需要对旧节点进行`unmount`
 - 否则，说明有新增节点，需要进行`mount`;
 
-![无key子序列](/Users/xuguorui/study/Vue3-NB/docs/assets/images/diff/unkey.png)
+![无key子序列](../assets/images/diff/unkey.png)
 
 这里贴下省略后的代码。
 
@@ -85,7 +85,7 @@ let e2 = l2 - 1 // next ending index
 
 ### 2.1 起始位置节点类型相同
 
-![起始位置相同](/Users/xuguorui/study/Vue3-NB/docs/assets/images/diff/key1.png)
+![起始位置相同](../assets/images/diff/key1.png)
 
 - 对于起始位置类型相同的节点，从左向右进行`diff`遍历。
 
@@ -118,7 +118,7 @@ while (i <= e1 && i <= e2) {
 
 ### 2.2 结束位置节点类型相同
 
-![结束位置相同](/Users/xuguorui/study/Vue3-NB/docs/assets/images/diff/key2.png)
+![结束位置相同](../assets/images/diff/key2.png)
 
 开始位置相同`diff` 结束，会紧接着从序列尾部开始遍历 `diff`。
 
@@ -152,7 +152,7 @@ while (i <= e1 && i <= e2) {
 
 经过上面两种情况的处理，已经`patch`完首尾相同部分的节点，接下来是对新序列中的新增节点进行`patch`处理。
 
-![挂载新增节点](/Users/xuguorui/study/Vue3-NB/docs/assets/images/diff/key3.png)
+![挂载新增节点](../assets/images/diff/key3.png)
 
 在经过上面两种请款处理之后，如果有新增节点，可能会出现 `i >  e1 && i <= e2`的情况。
 
@@ -196,7 +196,7 @@ if (i > e1) {
 
 
 
-![卸载旧节点](/Users/xuguorui/study/Vue3-NB/docs/assets/images/diff/key4.png)
+![卸载旧节点](../assets/images/diff/key4.png)
 
 如果处理完收尾相同的节点，出现`i > e2` && `i <= e1`的情况，则意味着有旧节点需要进行卸载操作。
 
@@ -225,11 +225,11 @@ else if (i > e2) {
 
 下面一起来看下如何实现的。
 
-![中间乱序，但有可复用节点](/Users/xuguorui/study/Vue3-NB/docs/assets/images/diff/key5.png)
+![中间乱序，但有可复用节点](../assets/images/diff/key5.png)
 
 #### 2.5.1 为新子节点构建`key:index`映射
 
-![构建key:index映射](/Users/xuguorui/study/Vue3-NB/docs/assets/images/diff/key6.png)
+![构建key:index映射](../assets/images/diff/key6.png)
 
 
 
@@ -317,7 +317,7 @@ for (i = 0; i < toBePatched; i++) newIndexToOldIndexMap[i] = 0
 - 变量`newIndexToOldIndexMap`用于映射**新的子序列中的节点下标** 对应于 **旧的子序列中的节点的下标**
 - 并且会将`newIndexToOldIndexMap`初始化为一个全0数组，`[0, 0, 0, 0]`
 
-![可复用交叉节点](/Users/xuguorui/study/Vue3-NB/docs/assets/images/diff/交叉节点.png)
+![可复用交叉节点](../assets/images/diff/交叉节点.png)
 
 知道了这些变量的含义之后 我们就可以开始从左向右遍历子序列了。
 
@@ -504,7 +504,7 @@ patched++
 - 数组`[2, 3, 7, 101]` 是数组 `[10 , 9, 2, 5, 3, 7, 101, 18]`的最大递增子序列。
 - 数组`[0, 1, 2, 3]` 是数组 `[0, 1, 0, 3, 2, 3]`的最大递增子序列。
 
-![最大递增子序列](/Users/xuguorui/study/Vue3-NB/docs/assets/images/diff/递增序列.png)
+![最大递增子序列](../assets/images/diff/递增序列.png)
 
 已上图为例，在未处理的乱序节点中，存在`新增节点N、I`、需要卸载的`节点G`，及可复用`节点C、D、E、F`。
 
@@ -567,7 +567,7 @@ for (i = toBePatched - 1; i >= 0; i--) {
 }
 ```
 
-![从右向左patch节点](/Users/xuguorui/study/Vue3-NB/docs/assets/images/diff/key7.png)
+![从右向左patch节点](../assets/images/diff/key7.png)
 
 从上面的代码可以知道：
 
@@ -587,13 +587,13 @@ for (i = toBePatched - 1; i >= 0; i--) {
 
 图一：
 
-![练习示例](/Users/xuguorui/study/Vue3-NB/docs/assets/images/diff/练习.png)
+![练习示例](../assets/images/diff/练习.png)
 
 图二 & 三：
 
-![乱序情况示例](/Users/xuguorui/study/Vue3-NB/docs/assets/images/diff/示例.png)
+![乱序情况示例](../assets/images/diff/示例.png)
 
-![乱序情况示例2](/Users/xuguorui/study/Vue3-NB/docs/assets/images/diff/示例2.png)
+![乱序情况示例2](../assets/images/diff/示例2.png)
 
 ## 总结
 

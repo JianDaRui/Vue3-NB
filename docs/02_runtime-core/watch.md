@@ -8,9 +8,7 @@
 
 如果没有对Vue3的响应式原理不熟悉，建议先阅读第一篇[Vue3 reactivity 源码解析](https://juejin.cn/post/7025420444383576072)。
 
-
-
-![](D:\vue3深入浅出\docs\.vuepress\public\img\runtime-core\watch文章结构.png)
+![watch文章结构](../assets/images/runtime-core/watch文章结构.png)
 
 ## `computed` API
 
@@ -765,7 +763,7 @@ function doWatch(
 
 > 不要忘记，在job中获取新值也会触发`Track`任务。
 
-![watch](D:\vue3深入浅出\docs\.vuepress\public\img\runtime-core\watch (2).png)
+![watch](../assets/images/runtime-core/watch (2).png)
 
 
 

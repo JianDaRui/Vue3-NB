@@ -69,7 +69,7 @@
 
 ## 渲染逻辑
 
-![lifecycle](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/lifecycle.svg)
+![lifecycle](../assets/images/runtime-core/lifecycle%20copy.svg)
 
 在组件生命周期中，初次挂载会触发`mounted`钩子。
 
@@ -85,7 +85,7 @@
 
 `patch`的过程就包含了组件了创建到挂载，变化到更新。
 
-![render](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/render.png)
+![render](../assets/images/runtime-core/render.png)
 
 ```javascript
  const render = (vnode, container, isSVG) => {
@@ -141,7 +141,7 @@
 
 ## Text类型
 
-![处理文本类型](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/Text.png)
+![处理文本类型](../assets/images/runtime-core/Text.png)
 
 
 
@@ -153,7 +153,7 @@
 
 ## Comment类型
 
-![注释类型节点](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/Comment.png)
+![注释类型节点](../assets/images/runtime-core/Comment.png))
 
 - 匹配到`Comment`类型`Vnode`
 - 调用`processCommentNode`函数
@@ -162,7 +162,7 @@
 
 ## Static类型
 
-![Static](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/Static.png)
+![Static](../assets/images/runtime-core/Static.png)
 
 - 我们知道`Vue3`的性能提升，有部分原因就是得益于对静态节点的处理。
 - `patch`过程中，匹配到`Static`类型节点。
@@ -173,7 +173,7 @@
 
 ## Fragment类型
 
-![Fragment](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/fragment.png)
+![Fragment](../assets/images/runtime-core/fragment.png)
 
 - 匹配到`Fragment`类型节点。
 - 会调用`processFragment`函数，进行处理。
@@ -190,7 +190,7 @@
 
 ## Element类型
 
-![Element](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/element.png)
+![Element](../assets/images/runtime-core/Element.png)
 
 - 匹配到`Element`类型
 - 会调用`processElement`函数
@@ -207,7 +207,7 @@
 
 ## Component类型
 
-![Component](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/component.png)
+![Component](../assets/images/runtime-core/Component.png)
 
 - 通常情况下，我们都会给`createApp`传递一个组件
 - 故当`render`函数执行`patch`时，首先会匹配到组件类型的节点
@@ -231,7 +231,7 @@
 
 ## Teleport类型 & Suspense类型
 
-![Teleport](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/teleport&suspense.png)
+![Teleport](../assets/images/runtime-core/teleport&suspense.png)
 
 - `Teleport` 与 `Suspense`是`Vue3`新增的两个内置组件
 - 如果匹配到以上两种，会调用组件实例上的`process`方法
@@ -241,7 +241,7 @@
 
 ## 卸载组件
 
-![unmount](/Users/xuguorui/study/Vue3-NB/docs/02_runtime-core/unmount.png)
+![unmount](../assets/images/runtime-core/unmount.png)
 
 - 如果调用`render`函数时没有传`Vnode`，则会调用`unmount`函数对组件进行卸载
 - 卸载过程中，如果存在`ref`，会首先重置`ref`

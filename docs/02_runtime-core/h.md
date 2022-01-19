@@ -56,7 +56,7 @@
 
 且子节点同样可以抽象为同样的结构。
 
-![官方图片](D:\vue3深入浅出\docs\.vuepress\public\img\runtime-core\dom-tree.png)
+![官方图片](../assets/images/runtime-core/dom-tree.png)
 
 而`h`函数就是做了这么一件事。给他传入`type`、`props`、`children`。它返回对应的`Vnode`描述对象。
 
@@ -402,15 +402,7 @@ render () {
 
 后面我们会对`withDirectives API`进行分析。
 
-
-
-
-
-
-
 > `resolveComponent API` 及 `resolveDirective API`原理是一样的。当我们创建一个组件的时候，给这个组件配置`compontes`属性、`directives`属性。这些属性最终都会绑定在实例上，`resolve`组件/指令的过程，就是通过访问当前实例的`compontes/directives`属性的过程。
-
-## 
 
 ## 渲染函数`h()`源码分析
 
@@ -653,8 +645,6 @@ function _createVNode(
 - 对`Vue2`做兼容处理
 
 > `Object.assign`与`Proxy`：https://stackoverflow.com/questions/43185453/object-assign-and-proxies
-
-
 
 上面代码中，如果`type`是`Vnode`类型，会调用`cloneVNode`创建克隆的节点，接下来我们看下`cloneVNode`函数。
 
@@ -1022,8 +1012,6 @@ function withDirectives(vnode, directives) {
 ## 总结
 
 `h`函数其实是`createVNode`的语法糖，返回的就是一个`Js`普通对象。在`createVNode` API 在创建`Vnode`的时候，会对`Vnode`的props、`children`、`ref`、`class`、`style`等属性进行规范梳理或者合并。如果`Type`直接就是`Vnode`类型，则会返回深度克隆的`Vnode`对象。相较于`HTML`模板语法，使用`h`函数创建组件`Vnode`，更加灵活，也更抽象。
-
-
 
 参考:
 

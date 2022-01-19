@@ -2,7 +2,7 @@
 
 > 大家好，我是剑大瑞。前段时间公司用`Vue3`做了一个全新的项目，很荣幸，参与了大部分功能的开发工作，就把`Vue3`全家桶全部实践了一遍。趁热打铁，阅读了下`Vue3`源码中的`reactivity`包的源码。有不少收获，借此机会，将其分享出来。如有不足，还望各位批评指正。
 
-![目录](D:\vue3深入浅出\docs\.vuepress\public\img\catalogue.png)
+![目录](../assets/images/reactive/catalogue.png)
 
 ## 新旧对比
 
@@ -357,7 +357,7 @@ sub.notify();
 
 **`Vue2`中的观察者模式**
 
-![借用大佬的图，侵删](D:\vue3深入浅出\docs\.vuepress\public\img\define_reactive.png)
+![借用大佬的图，侵删](../assets/images/reactive/define_reactive.png)
 
 
 
@@ -691,7 +691,7 @@ class Watcher {
 
 `Vue3`响应式是基于`Proxy`的代理模式。通过**配置`handler`**我们就可以对原始对象的访问**进行控制 & 增强**。
 
-![Vue3代理模式](D:\vue3深入浅出\docs\.vuepress\public\img\proxy_module.png)
+![Vue3代理模式](../assets/images/reactive/proxy_module.png)
 
 **增强的`hanlder`**
 
@@ -878,7 +878,7 @@ obj.otherInfo.temp1.push("羽毛球")
 
 当obj的属性发生变化的时候，我们需要去执行所有与之相关的effect，触发响应。`Vue`中，`state`与依赖的关系，可以具体到最基本的` key:value`，其结构与`Vue2`中`state`与`watcher`的结构相似，只不过在存储state与依赖的方式有所变化：
 
-![数据与依赖之间的关系](D:\vue3深入浅出\docs\.vuepress\public\img\effect_dep.png)
+![数据与依赖之间的关系](/Users/xuguorui/study/Vue3-NB/docs/assets/images/reactive/effect_dep.png)
 
 - `targetMap`：使用`WeakMap`实例，用于维护`targetObject与KeyToDepMap`的关系
 - `KeyToDepMap`：使用`Map`实例，用于维护key与`Dep`的关系
@@ -2455,11 +2455,11 @@ const shallowReadonlyCollectionHandlers = {
 
 **`baseHandlers`**：
 
-![baseHandlers](D:\vue3深入浅出\docs\.vuepress\public\img\baseHandlers.png)
+![baseHandlers](../assets/images/reactive/baseHandlers.png)
 
 **collectionHandlers**：
 
-![collectionHandlers](D:\vue3深入浅出\docs\.vuepress\public\img\collectionHandlers (1).png)
+![collectionHandlers](../assets/images/reactive/collectionHandlers (1).png)
 
 ## API实现原理
 

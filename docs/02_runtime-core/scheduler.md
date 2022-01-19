@@ -319,6 +319,6 @@ function nextTick(
 
 最后上一张图，总结下整个过程。
 
-![一图胜千言](D:\vue3深入浅出\docs\.vuepress\public\img\runtime-core\scheduler6.png)
+![一图胜千言](../assets/images/runtime-core/scheduler6.png)
 
 > 最后还是很(`bu`)真(`yao`)诚(`lian`)的推荐下我的公众号：coder狂想曲。您的关注就是对我创作的最大鼓励呐。

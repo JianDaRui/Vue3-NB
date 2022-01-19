@@ -88,7 +88,7 @@ app.mount('#app')
 - 这与我们[**上一篇**](https://mp.weixin.qq.com/s/SmAF9qvtAiyGRxEv5A-0CA)讲的`nextTick`原理有关，看过的小伙伴可以思考下，再看看源码，我相信你一定有收获。
 - 这与组件的更新原理有关，组件的`update`函数，也是一个`effect`。这是一个`component Effect`，这将使我们接触的第三个级别的`Effect`函数，后面我们分析渲染器的时候，会进行讲解。这里先挖个坑。
 
-![官方图片镇楼](D:\vue3深入浅出\docs\.vuepress\public\img\runtime-core\lifecycle.jpg)
+![官方图片镇楼](../assets/images/runtime-core/lifeCycle.jpg)
 
 ## 分析
 
