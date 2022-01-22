@@ -65,8 +65,9 @@ const decodeMap: Record<string, string> = {
   apos: "'",
   quot: '"'
 }
-
+// 默认分析配置项
 export const defaultParserOptions: MergedParserOptions = {
+  // 分隔符
   delimiters: [`{{`, `}}`],
   getNamespace: () => Namespaces.HTML,
   getTextMode: () => TextModes.DATA,
@@ -88,7 +89,7 @@ export const enum TextModes {
   CDATA,
   ATTRIBUTE_VALUE
 }
-
+// 分析上下文
 export interface ParserContext {
   options: MergedParserOptions
   readonly originalSource: string
@@ -102,11 +103,14 @@ export interface ParserContext {
 }
 
 export function baseParse(
-  content: string,
+  content: string, // template
   options: ParserOptions = {}
 ): RootNode {
+  // 解析上下文
   const context = createParserContext(content, options)
+  // 0, 0, 1
   const start = getCursor(context)
+
   return createRoot(
     parseChildren(context, TextModes.DATA, []),
     getSelection(context, start)
@@ -127,8 +131,8 @@ function createParserContext(
     column: 1,
     line: 1,
     offset: 0,
-    originalSource: content,
-    source: content,
+    originalSource: content, // template
+    source: content, // template
     inPre: false,
     inVPre: false,
     onWarn: options.onWarn
@@ -1095,7 +1099,7 @@ function emitError(
     })
   )
 }
-
+// 是否是结尾
 function isEnd(
   context: ParserContext,
   mode: TextModes,

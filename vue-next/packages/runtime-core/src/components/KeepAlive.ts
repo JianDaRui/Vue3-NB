@@ -91,6 +91,7 @@ const KeepAliveImpl: ComponentOptions = {
 
     // if the internal renderer is not registered, it indicates that this is server-side rendering,
     // for KeepAlive, we just need to render its children
+    // 服务端渲染的处理方式
     if (!sharedContext.renderer) {
       return slots.default
     }
@@ -103,7 +104,7 @@ const KeepAliveImpl: ComponentOptions = {
     if (__DEV__ || __FEATURE_PROD_DEVTOOLS__) {
       ;(instance as any).__v_cache = cache
     }
-
+    // 悬挂
     const parentSuspense = instance.suspense
     // 解构获取内部渲染器
     // 其实就是basecreaterender函数中的方法
@@ -135,7 +136,7 @@ const KeepAliveImpl: ComponentOptions = {
         vnode.slotScopeIds,
         optimized
       )
-      // 
+      // 后置任务池中 push 任务
       queuePostRenderEffect(() => {
         instance.isDeactivated = false
         if (instance.a) {
@@ -178,11 +179,13 @@ const KeepAliveImpl: ComponentOptions = {
       resetShapeFlag(vnode)
       _unmount(vnode, instance, parentSuspense)
     }
-
+    // 修整缓存
     function pruneCache(filter?: (name: string) => boolean) {
       cache.forEach((vnode, key) => {
+        // 获取组件名称
         const name = getComponentName(vnode.type as ConcreteComponent)
         if (name && (!filter || !filter(name))) {
+          // 如果不符合缓存匹配逻辑，修建缓存
           pruneCacheEntry(key)
         }
       })
@@ -191,6 +194,7 @@ const KeepAliveImpl: ComponentOptions = {
     function pruneCacheEntry(key: CacheKey) {
       const cached = cache.get(key) as VNode
       if (!current || cached.type !== current.type) {
+        // 缓存类型不同于当前类型 卸载缓存Vnode
         unmount(cached)
       } else if (current) {
         // current active instance should no longer be kept-alive.
@@ -237,6 +241,7 @@ const KeepAliveImpl: ComponentOptions = {
           da && queuePostRenderEffect(da, suspense)
           return
         }
+        // 清理缓存
         unmount(cached)
       })
     })
@@ -252,6 +257,7 @@ const KeepAliveImpl: ComponentOptions = {
       // 获取第一个子节点
       const rawVNode = children[0]
       // 对子节点数量进行校验
+      // 仅能缓存一个子节点
       if (children.length > 1) {
         if (__DEV__) {
           warn(`KeepAlive should contain exactly one component child.`)
@@ -452,7 +458,7 @@ function resetShapeFlag(vnode: VNode) {
   }
   vnode.shapeFlag = shapeFlag
 }
-// 获取内部子节点
+// 获取内部子 Vnode
 function getInnerChild(vnode: VNode) {
   return vnode.shapeFlag & ShapeFlags.SUSPENSE ? vnode.ssContent! : vnode
 }
