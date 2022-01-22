@@ -193,7 +193,7 @@ function matches(pattern, name) {
 ```js
 const KeepAliveImpl = {
   
-  setup(props: KeepAliveProps, { slots }) {
+  setup(props, { slots }) {
     // 获取当前渲染实例
     const instance = getCurrentInstance()!
     const sharedContext = instance.ctx
@@ -242,8 +242,9 @@ const KeepAliveImpl = {
       // that is mounted. Instead of caching it directly, we store the pending
       // key and cache `instance.subTree` (the normalized vnode) in
       // beforeMount/beforeUpdate hooks.
+      
       // 这里更新pendingCacheKey是因为attr fallthrough 或者 scopeId变化需要返回一个经过克隆的Vnode,
-      // 这里的Vnode并不能作为最终渲染所使用的的Vnode。
+      // 因此这里的Vnode并不能作为最终渲染所使用的的Vnode。
       // 不是直接缓存，而是在 beforeMount/beforeUpdate阶段
       // 存储pending状态的key和要缓存的Vnode。（翻译的不好，望指教~~~）
       pendingCacheKey = key
@@ -274,7 +275,134 @@ const KeepAliveImpl = {
 通过上面的代码可以知道：
 
 - Vnode的cache构建，是在Keep-Alive组件的onMounted && onUpdated两个生命周期通过cacheSubtree方法构建的。
-- pendingCacheKey主要用于记录处理pending状态的key
-- 在获取到cachedVNode之后，更新keys。
+- 变量pendingCacheKey主要用于记录处理pending状态的key
+- 如果组件的Vnode先前被Vnode被缓存过，在获取到cachedVNode之后，会更新keys中对应的key。
+
+
+
+## `activated` 和 `deactivate`钩子函数
+
+
+
+```js
+const KeepAliveImpl: ComponentOptions = {
+  name: `KeepAlive`,
+
+  // Marker for special handling inside the renderer. We are not using a ===
+  // check directly on KeepAlive in the renderer, because importing it directly
+  // would prevent it from being tree-shaken.
+  __isKeepAlive: true,
+
+  props: {
+    include: [String, RegExp, Array],
+    exclude: [String, RegExp, Array],
+    max: [String, Number]
+  },
+
+  setup(props, { slots }) {
+    // 获取当前渲染实例
+    const instance = getCurrentInstance()!
+    // KeepAlive communicates with the instantiated renderer via the
+    // ctx where the renderer passes in its internals,
+    // and the KeepAlive instance exposes activate/deactivate implementations.
+    // The whole point of this is to avoid importing KeepAlive directly in the
+    // renderer to facilitate tree-shaking.
+    const sharedContext = instance.ctx
+
+
+    let current: VNode | null = null
+
+    if (__DEV__ || __FEATURE_PROD_DEVTOOLS__) {
+      ;(instance as any).__v_cache = cache
+    }
+    // 悬挂
+    const parentSuspense = instance.suspense
+    // 解构获取内部渲染器
+    // 其实就是basecreaterender函数中的方法
+    const {
+      renderer: {
+        p: patch,
+        m: move,
+        um: _unmount,
+        o: { createElement }
+      }
+    } = sharedContext
+    // 创建存储容器
+    const storageContainer = createElement('div')
+    
+    // 🟢
+    sharedContext.activate = (vnode, container, anchor, isSVG, optimized) => {
+      const instance = vnode.component!
+      // 移动节点
+      move(vnode, container, anchor, MoveType.ENTER, parentSuspense)
+      // in case props have changed
+      // 某些情况下属性可能发生改变
+      patch(
+        instance.vnode,
+        vnode,
+        container,
+        anchor,
+        instance,
+        parentSuspense,
+        isSVG,
+        vnode.slotScopeIds,
+        optimized
+      )
+      // 后置任务池中 push 任务
+      queuePostRenderEffect(() => {
+        instance.isDeactivated = false
+        if (instance.a) {
+          invokeArrayFns(instance.a)
+        }
+        const vnodeHook = vnode.props && vnode.props.onVnodeMounted
+        if (vnodeHook) {
+          invokeVNodeHook(vnodeHook, instance.parent, vnode)
+        }
+      }, parentSuspense)
+    }
+    // 🟡 失活时
+    sharedContext.deactivate = (vnode: VNode) => {
+      const instance = vnode.component!
+      move(vnode, storageContainer, null, MoveType.LEAVE, parentSuspense)
+      
+      queuePostRenderEffect(() => {
+        if (instance.da) {
+          invokeArrayFns(instance.da)
+        }
+        const vnodeHook = vnode.props && vnode.props.onVnodeUnmounted
+        if (vnodeHook) {
+          invokeVNodeHook(vnodeHook, instance.parent, vnode)
+        }
+        instance.isDeactivated = true
+      }, parentSuspense)
+
+    }
+    // 卸载
+    function unmount(vnode: VNode) {
+      // reset the shapeFlag so it can be properly unmounted
+      resetShapeFlag(vnode)
+      _unmount(vnode, instance, parentSuspense)
+    }
+
+
+    onBeforeUnmount(() => {
+      cache.forEach(cached => {
+        const { subTree, suspense } = instance
+        const vnode = getInnerChild(subTree)
+        if (cached.type === vnode.type) {
+          // current instance will be unmounted as part of keep-alive's unmount
+          resetShapeFlag(vnode)
+          // but invoke its deactivated hook here
+          const da = vnode.component!.da
+          da && queuePostRenderEffect(da, suspense)
+          return
+        }
+        // 清理缓存
+        unmount(cached)
+      })
+    })
+  }
+}
+```
 
 ## 
