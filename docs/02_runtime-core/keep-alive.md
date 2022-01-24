@@ -218,6 +218,7 @@ const KeepAliveImpl = {
         cache.set(pendingCacheKey, getInnerChild(instance.subTree))
       }
     }
+    // 🟢 缓存组件
     onMounted(cacheSubtree)
     onUpdated(cacheSubtree)
 
@@ -280,9 +281,9 @@ const KeepAliveImpl = {
 
 
 
-## `activated` 和 `deactivate`钩子函数
+## `activated` & `deactivate`钩子函数实现
 
-
+经过<keep-alive>包裹组件，在切换时，它的生命周期钩子mounted 和unmouned生命周期钩子不会被调用，而是被缓存组件独有的两个生命周期钩子所代替：activated和deactivated。这两个钩子会被用于keep-alive的直接子节点和所有子孙节点。
 
 ```js
 const KeepAliveImpl: ComponentOptions = {
@@ -330,7 +331,7 @@ const KeepAliveImpl: ComponentOptions = {
     // 创建存储容器
     const storageContainer = createElement('div')
     
-    // 🟢
+    // 🟢 存活时
     sharedContext.activate = (vnode, container, anchor, isSVG, optimized) => {
       const instance = vnode.component!
       // 移动节点
@@ -361,7 +362,7 @@ const KeepAliveImpl: ComponentOptions = {
       }, parentSuspense)
     }
     // 🟡 失活时
-    sharedContext.deactivate = (vnode: VNode) => {
+    sharedContext.deactivate = (vnode) => {
       const instance = vnode.component!
       move(vnode, storageContainer, null, MoveType.LEAVE, parentSuspense)
       
@@ -377,8 +378,87 @@ const KeepAliveImpl: ComponentOptions = {
       }, parentSuspense)
 
     }
-    // 卸载
-    function unmount(vnode: VNode) {
+  }
+}
+```
+
+从上面的代码可以知道：
+
+- 代码首先会从当前实例的上下文中获取渲染相关的方法，这些方法其实是在renderer中创建并配置好的，当patch组件时，会首先执行mountComponent方法，当组件是Keep-alive组件时，会绑定渲染相关的属性，因此在这里解构可以获取到mount、patch、move等方法。
+- activated方法主要负责移动节点、调用patch方法，向任务调度器中的后置任务池中push Vnode相关的钩子。
+- deactivated方法会通过move方法移除Vnode，向任务调度器中的后置任务池中push 卸载相关的Vnode钩子。
+
+```js
+// packages/runtime-core/renderer.ts中的代码
+function baseCreateRenderer() {
+  // 省略其他代码...
+  
+  // 挂载组件
+  const mountComponent = (
+    initialVNode,
+    container,
+    anchor,
+    parentComponent,
+    parentSuspense,
+    isSVG,
+    optimized
+  ) => {
+    
+    // 获取当前渲染实例
+    const instance =
+      compatMountInstance ||
+      (initialVNode.component = createComponentInstance(
+        initialVNode,
+        parentComponent,
+        parentSuspense
+      ))
+
+    // inject renderer internals for keepAlive
+    // 为KeepAlive注入私有渲染器
+    if (isKeepAlive(initialVNode)) {
+      instance.ctx.renderer = internals
+    }
+     
+  }
+
+  // 定义内部渲染器
+  const internals = {
+    p: patch,
+    um: unmount,
+    m: move,
+    r: remove,
+    mt: mountComponent,
+    mc: mountChildren,
+    pc: patchChildren,
+    pbc: patchBlockChildren,
+    n: getNextHostNode,
+    o: options
+  }
+}
+
+```
+
+
+
+清空缓存：
+
+
+
+```js
+const KeepAliveImpl = {
+  name: `KeepAlive`,
+ 
+  __isKeepAlive: true,
+
+  props: {
+    include: [String, RegExp, Array],
+    exclude: [String, RegExp, Array],
+    max: [String, Number]
+  },
+
+  setup(props, { slots }) { 
+  	 // 卸载
+    function unmount(vnode) {
       // reset the shapeFlag so it can be properly unmounted
       resetShapeFlag(vnode)
       _unmount(vnode, instance, parentSuspense)
@@ -403,6 +483,7 @@ const KeepAliveImpl: ComponentOptions = {
     })
   }
 }
+
 ```
 
-## 
+当Keep-alive卸载的时候，会调用onBeforeUnmount生命周期钩子，在此钩子中会遍历cache，执行卸载相关的逻辑。
