@@ -1,12 +1,55 @@
-# Keep-Alive 使用及原理分析
+# `KeepAlive` 使用及原理分析
 
-缓存路由
+KeepAlive组件是Vue中的内置组件，主要用于保留组件状态或者避免组件重新渲染。以提高性能。
 
+KeepAlive组件接受三个Props属性：
 
+- `include` - `string | RegExp | Array`。只有名称匹配的组件会被缓存。
+- `exclude` - `string | RegExp | Array`。任何名称匹配的组件都不会被缓存。
+- `max` - `number | string`。最多可以缓存多少组件实例。
 
-缓存动态组件
+使用方法：
 
+```html
+<!-- 基本 -->
+<keep-alive>
+  <component :is="view"></component>
+</keep-alive>
 
+<!-- 多个条件判断的子组件 -->
+<keep-alive>
+  <comp-a v-if="a > 1"></comp-a>
+  <comp-b v-else></comp-b>
+</keep-alive>
+
+<!-- 和 `<transition>` 一起使用 -->
+<transition>
+  <keep-alive>
+    <component :is="view"></component>
+  </keep-alive>
+</transition>
+
+<!-- 逗号分隔字符串 -->
+<keep-alive include="a,b">
+  <component :is="view"></component>
+</keep-alive>
+
+<!-- regex (使用 `v-bind`) -->
+<keep-alive :include="/a|b/">
+  <component :is="view"></component>
+</keep-alive>
+
+<!-- Array (使用 `v-bind`) -->
+<keep-alive :include="['a', 'b']">
+  <component :is="view"></component>
+</keep-alive>
+
+<!-- max属性设置缓存上限 -->
+<keep-alive :max="10">
+  <component :is="view"></component>
+</keep-alive>
+
+```
 
 ## Keep-Alive返回的是什么？
 
@@ -48,35 +91,23 @@ const KeepAliveImpl = {
 }
 ```
 
-通过上面的代码可以知道，`KeepAlive`组件是一个抽象组件。
+通过上面的代码可以知道，`KeepAlive`组件是一个**抽象组件**。
 
-组件中并没有我们经常使用的模板`template`。
+组件中并没有我们经常使用的模板`template`或者返回一个render函数。
 
 在`setup`函数中，通过参数`slots.default()`获取到`KeepAlive`组件包裹的子组件列表。
 
-最终返回的是第一个子组件的`rawVnode`。
+最终返回的是**第一个子组件**的`rawVnode`。且仅支持缓存第一个子节点。
 
 > 细心的同学，可能注意，我们平时使用`setup`函数时，最终返回的结果是一个对象。
 >
 > 而`KeepAlive`返回的是一个箭头函数。这里关于`setup`返回函数的分析，我们会在后续的文章中进行学习。
 
-上面的代码并没有体现出，
-
 ## KeepAlive是如何进行组件筛选的？
 
 ```javascript
-const KeepAliveImpl: ComponentOptions = {
-  name: `KeepAlive`,
-  __isKeepAlive: true,
-
-  props: {
-    include: [String, RegExp, Array],
-    exclude: [String, RegExp, Array],
-    max: [String, Number]
-  },
-
+const KeepAliveImpl = {
   setup(props, { slots }) {
-
     // 1️⃣ 缓存Vnode
     const cache: Cache = new Map()
     // 记录被缓存Vnode的key
@@ -161,15 +192,13 @@ const KeepAliveImpl: ComponentOptions = {
 }
 ```
 
-上面的代码我们可以分成四部分进行分析：
+上面的代码我们可以分成五部分进行分析：
 
-1. 常量`cache`用于映射缓存组件的`key : Vnode`，常量keys用于记录已经被缓存的`Vnode`的`key`
+1. 常量`cache`用于映射缓存组件的`key : Vnode`，常量`keys`用于记录已经被缓存的`Vnode`的`key`
 2. 负责修剪`cache`、`keys`的`pruneCache`、`pruneCacheEntry`方法。主要职责是通过遍历`cache`，执行`filter`函数，修剪`cache`、`keys`。
-3. 负责侦测筛选条件的`watch`，当筛选条件发生变化的时候，会执行`pruneCache`，更新`cache`、`keys`。
+3. 负责侦测筛选条件的`watch`，当筛选条件发生变化的时候，会执行`pruneCache`，更新`cache`、`keys`。筛选条件就是我们传入的props中的`include`、`exclude`。
 4. 用于筛选符合筛选条件的`Vnode`，不符合缓存条件的，会直接返回`rawVnode`，不会被`cache`、`keys`缓存。
 5. 用于判断是否已经超过缓存上限，如果超过，会删除最开始被缓存的`Vnode`。
-
-
 
 对于代码中的`matches`函数，是一个用于匹配的工具函数。
 
@@ -188,11 +217,10 @@ function matches(pattern, name) {
 }
 ```
 
-## 哪个阶段构建的缓存？
+## 在哪个阶段构建的缓存？
 
 ```js
 const KeepAliveImpl = {
-  
   setup(props, { slots }) {
     // 获取当前渲染实例
     const instance = getCurrentInstance()!
@@ -275,31 +303,18 @@ const KeepAliveImpl = {
 
 通过上面的代码可以知道：
 
-- Vnode的cache构建，是在Keep-Alive组件的onMounted && onUpdated两个生命周期通过cacheSubtree方法构建的。
-- 变量pendingCacheKey主要用于记录处理pending状态的key
-- 如果组件的Vnode先前被Vnode被缓存过，在获取到cachedVNode之后，会更新keys中对应的key。
+- `Vnode`的`cache`构建，是在`KeepAlive`组件的`onMounted` && `onUpdated`两个生命周期通过`cacheSubtree`方法构建的。
+- 变量`pendingCacheKey`主要用于记录处理`pending`状态的`key`
+- 如果组件的`Vnode`先前被`Vnode`被缓存过，在获取到`cachedVNode`之后，会更新`keys`中对应的`key`。
 
 
 
 ## `activated` & `deactivate`钩子函数实现
 
-经过<keep-alive>包裹组件，在切换时，它的生命周期钩子mounted 和unmouned生命周期钩子不会被调用，而是被缓存组件独有的两个生命周期钩子所代替：activated和deactivated。这两个钩子会被用于keep-alive的直接子节点和所有子孙节点。
+经过`KeepAlive`包裹组件，在切换时，它的生命周期钩子`mounted`和`unmouned`生命周期钩子不会被调用，而是被缓存组件独有的两个生命周期钩子所代替：`activated`和`deactivated`。这两个钩子会被用于`KeepAlive`的直接子节点和所有子孙节点。
 
 ```js
-const KeepAliveImpl: ComponentOptions = {
-  name: `KeepAlive`,
-
-  // Marker for special handling inside the renderer. We are not using a ===
-  // check directly on KeepAlive in the renderer, because importing it directly
-  // would prevent it from being tree-shaken.
-  __isKeepAlive: true,
-
-  props: {
-    include: [String, RegExp, Array],
-    exclude: [String, RegExp, Array],
-    max: [String, Number]
-  },
-
+const KeepAliveImpl = {
   setup(props, { slots }) {
     // 获取当前渲染实例
     const instance = getCurrentInstance()!
@@ -384,9 +399,9 @@ const KeepAliveImpl: ComponentOptions = {
 
 从上面的代码可以知道：
 
-- 代码首先会从当前实例的上下文中获取渲染相关的方法，这些方法其实是在renderer中创建并配置好的，当patch组件时，会首先执行mountComponent方法，当组件是Keep-alive组件时，会绑定渲染相关的属性，因此在这里解构可以获取到mount、patch、move等方法。
-- activated方法主要负责移动节点、调用patch方法，向任务调度器中的后置任务池中push Vnode相关的钩子。
-- deactivated方法会通过move方法移除Vnode，向任务调度器中的后置任务池中push 卸载相关的Vnode钩子。
+- 代码首先会从当前实例的上下文中获取渲染相关的方法，这些方法其实是在`renderer`中创建并配置好的，当`patch`组件时，会首先执行`mountComponent`方法，当组件是`KeepAlive`组件时，会绑定渲染相关的属性，因此在这里解构可以获取到`mount`、`patch`、`move`等方法。
+- `activated`方法主要负责移动节点、调用`patch`方法，向任务调度器中的后置任务池中push `Vnode`相关的钩子。
+- `deactivated`方法会通过`move`方法移除`Vnode`，向任务调度器中的后置任务池中`push` 卸载相关的`Vnode`钩子。
 
 ```js
 // packages/runtime-core/renderer.ts中的代码
@@ -442,20 +457,8 @@ function baseCreateRenderer() {
 
 清空缓存：
 
-
-
 ```js
 const KeepAliveImpl = {
-  name: `KeepAlive`,
- 
-  __isKeepAlive: true,
-
-  props: {
-    include: [String, RegExp, Array],
-    exclude: [String, RegExp, Array],
-    max: [String, Number]
-  },
-
   setup(props, { slots }) { 
   	 // 卸载
     function unmount(vnode) {
@@ -486,4 +489,8 @@ const KeepAliveImpl = {
 
 ```
 
-当Keep-alive卸载的时候，会调用onBeforeUnmount生命周期钩子，在此钩子中会遍历cache，执行卸载相关的逻辑。
+当KeepAlive卸载的时候，会调用`onBeforeUnmount`生命周期钩子，在此钩子中会遍历cache，执行卸载相关的逻辑。
+
+## 总结
+
+通过学习分析可以知道，KeepAlive组件是一个抽象组件，抽象组件也是有生命周期的。在KeepAlive组件内部通过`onMounted` && `onUpdated`两个生命周期对KeepAlive组件的第一个子节点的Vnode进行缓存，通过watch侦测筛选条件的变化，实现响应式的从cache中增删Vnode。在组件的onBeforeUnmounted阶段，实现缓存的清空。
