@@ -1,14 +1,14 @@
 # `KeepAlive` 使用及原理分析
 
-KeepAlive组件是Vue中的内置组件，主要用于保留组件状态或者避免组件重新渲染。以提高性能。
+`KeepAlive`组件是`Vue`中的内置组件，主要用于保留组件状态或者避免组件重新渲染。 
 
-KeepAlive组件接受三个Props属性：
+`KeepAlive`组件接受三个Props属性：
 
 - `include` - `string | RegExp | Array`。只有名称匹配的组件会被缓存。
 - `exclude` - `string | RegExp | Array`。任何名称匹配的组件都不会被缓存。
 - `max` - `number | string`。最多可以缓存多少组件实例。
 
-使用方法：
+使用方法：$$
 
 ```html
 <!-- 基本 -->
@@ -51,7 +51,9 @@ KeepAlive组件接受三个Props属性：
 
 ```
 
-## Keep-Alive返回的是什么？
+上面代码简单介绍了`KeepAlive`的使用方式，下面我们带着问题出发，从问题去分析`KeepAlive`组件的原理。
+
+## `KeepAlive`返回的是什么？
 
 看下简略版的代码：
 
@@ -93,7 +95,7 @@ const KeepAliveImpl = {
 
 通过上面的代码可以知道，`KeepAlive`组件是一个**抽象组件**。
 
-组件中并没有我们经常使用的模板`template`或者返回一个render函数。
+组件中并没有我们经常使用的模板`template`或者返回一个`render`函数。
 
 在`setup`函数中，通过参数`slots.default()`获取到`KeepAlive`组件包裹的子组件列表。
 
@@ -103,7 +105,9 @@ const KeepAliveImpl = {
 >
 > 而`KeepAlive`返回的是一个箭头函数。这里关于`setup`返回函数的分析，我们会在后续的文章中进行学习。
 
-## KeepAlive是如何进行组件筛选的？
+## `KeepAlive`是如何进行组件筛选的？
+
+在使用`KeepAlive`时，我们可以通过配置`include` & `exclude`属性来实现对目标组件的缓存。`include` & `exclude` 属性可以配置`string`、`array`、`regExp`类型。下面一起看下`KeepAlive`是怎么利用这两个属性进行组件筛选的。
 
 ```javascript
 const KeepAliveImpl = {
@@ -219,6 +223,8 @@ function matches(pattern, name) {
 
 ## 在哪个阶段构建的缓存？
 
+下面我们一起看下`KeepAlive`组件是本组件的哪个生命周期中进行的缓存构建：
+
 ```js
 const KeepAliveImpl = {
   setup(props, { slots }) {
@@ -306,8 +312,6 @@ const KeepAliveImpl = {
 - `Vnode`的`cache`构建，是在`KeepAlive`组件的`onMounted` && `onUpdated`两个生命周期通过`cacheSubtree`方法构建的。
 - 变量`pendingCacheKey`主要用于记录处理`pending`状态的`key`
 - 如果组件的`Vnode`先前被`Vnode`被缓存过，在获取到`cachedVNode`之后，会更新`keys`中对应的`key`。
-
-
 
 ## `activated` & `deactivate`钩子函数实现
 
@@ -453,9 +457,7 @@ function baseCreateRenderer() {
 
 ```
 
-
-
-清空缓存：
+## 清空缓存
 
 ```js
 const KeepAliveImpl = {
@@ -489,8 +491,8 @@ const KeepAliveImpl = {
 
 ```
 
-当KeepAlive卸载的时候，会调用`onBeforeUnmount`生命周期钩子，在此钩子中会遍历cache，执行卸载相关的逻辑。
+当`KeepAlive`卸载的时候，会调用`onBeforeUnmount`生命周期钩子，在此钩子中会遍历`cache`，执行卸载相关的逻辑。
 
 ## 总结
 
-通过学习分析可以知道，KeepAlive组件是一个抽象组件，抽象组件也是有生命周期的。在KeepAlive组件内部通过`onMounted` && `onUpdated`两个生命周期对KeepAlive组件的第一个子节点的Vnode进行缓存，通过watch侦测筛选条件的变化，实现响应式的从cache中增删Vnode。在组件的onBeforeUnmounted阶段，实现缓存的清空。
+通过学习分析可以知道，`KeepAlive`组件是一个抽象组件，抽象组件也是有生命周期的。在`KeepAlive`组件内部通过`onMounted` && `onUpdated`两个生命周期对`KeepAlive`组件的第一个子节点的`Vnode`进行缓存，通过`watch`侦测筛选条件的变化，实现响应式的从`cache`中增删`Vnode`。在组件的`onBeforeUnmounted`阶段，实现缓存的清空。

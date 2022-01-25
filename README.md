@@ -13,3 +13,4 @@
   - [第八篇——从创建到挂载](<./docs/02_runtime-core/createApp.md>)
   - [第九篇——渲染器`renderer`分析](<./docs/02_runtime-core/renderer.md>)
   - [第十篇——`diff`算法图解分析](<./docs/02_runtime-core/diff.md>)
+  - [第十篇——`KeepAlive`使用与原理分析](<./docs/02_runtime-core/keep-alive.md>)
