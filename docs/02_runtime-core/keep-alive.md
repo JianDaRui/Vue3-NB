@@ -1,14 +1,14 @@
 # `KeepAlive` 使用及原理分析
 
-`KeepAlive`组件是`Vue`中的内置组件，主要用于保留组件状态或者避免组件重新渲染。 
+`KeepAlive`组件是Vue中的内置组件，主要用于保留组件状态或者避免组件重新渲染。 
 
-`KeepAlive`组件接受三个Props属性：
+`KeepAlive`组件接受三个`Props`属性：
 
 - `include` - `string | RegExp | Array`。只有名称匹配的组件会被缓存。
 - `exclude` - `string | RegExp | Array`。任何名称匹配的组件都不会被缓存。
 - `max` - `number | string`。最多可以缓存多少组件实例。
 
-使用方法：$$
+使用方法：
 
 ```html
 <!-- 基本 -->
