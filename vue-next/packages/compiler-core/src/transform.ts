@@ -315,6 +315,7 @@ export function transform(root: RootNode, options: TransformOptions) {
   const context = createTransformContext(root, options)
   traverseNode(root, context)
   if (options.hoistStatic) {
+    // 静态提升
     hoistStatic(root, context)
   }
   if (!options.ssr) {
@@ -401,6 +402,7 @@ export function traverseChildren(
     context.parent = parent
     context.childIndex = i
     context.onNodeRemoved = nodeRemoved
+    // 递归转换
     traverseNode(child, context)
   }
 }
@@ -449,6 +451,7 @@ export function traverseNode(
     // for container types, further traverse downwards
     case NodeTypes.IF:
       for (let i = 0; i < node.branches.length; i++) {
+        // 递归转换
         traverseNode(node.branches[i], context)
       }
       break

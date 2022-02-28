@@ -87,6 +87,7 @@ export interface CodegenContext
   newline(): void
 }
 
+// 创建代码生成上下文
 function createCodegenContext(
   ast: RootNode,
   {
@@ -123,6 +124,7 @@ function createCodegenContext(
       return `_${helperNameMap[key]}`
     },
     push(code, node) {
+      // 代码生成
       context.code += code
       if (!__BROWSER__ && context.map) {
         if (node) {
@@ -142,6 +144,7 @@ function createCodegenContext(
       }
     },
     indent() {
+      // 缩进
       newline(++context.indentLevel)
     },
     deindent(withoutNewLine = false) {
@@ -689,12 +692,12 @@ function genText(
 ) {
   context.push(JSON.stringify(node.content), node)
 }
-
+// 生成表达式
 function genExpression(node: SimpleExpressionNode, context: CodegenContext) {
   const { content, isStatic } = node
   context.push(isStatic ? JSON.stringify(content) : content, node)
 }
-
+// 生成插值
 function genInterpolation(node: InterpolationNode, context: CodegenContext) {
   const { push, helper, pure } = context
   if (pure) push(PURE_ANNOTATION)

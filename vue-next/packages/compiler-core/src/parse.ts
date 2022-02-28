@@ -144,10 +144,11 @@ function parseChildren(
   mode: TextModes,
   ancestors: ElementNode[]
 ): TemplateChildNode[] {
+  // 获取最后一个元素 最后一个即为 父标签
   const parent = last(ancestors)
   const ns = parent ? parent.ns : Namespaces.HTML
   const nodes: TemplateChildNode[] = []
-
+  
   while (!isEnd(context, mode, ancestors)) {
     __TEST__ && assert(context.source.length > 0)
     const s = context.source
@@ -155,7 +156,7 @@ function parseChildren(
 
     if (mode === TextModes.DATA || mode === TextModes.RCDATA) {
       if (!context.inVPre && startsWith(s, context.options.delimiters[0])) {
-        // '{{'
+        // '{{' 解析插值
         node = parseInterpolation(context, mode)
       } else if (mode === TextModes.DATA && s[0] === '<') {
         // https://html.spec.whatwg.org/multipage/parsing.html#tag-open-state
@@ -164,9 +165,11 @@ function parseChildren(
         } else if (s[1] === '!') {
           // https://html.spec.whatwg.org/multipage/parsing.html#markup-declaration-open-state
           if (startsWith(s, '<!--')) {
+            // 解析注释
             node = parseComment(context)
           } else if (startsWith(s, '<!DOCTYPE')) {
             // Ignore DOCTYPE by a limitation.
+            // 解析伪注释
             node = parseBogusComment(context)
           } else if (startsWith(s, '<![CDATA[')) {
             if (ns !== Namespaces.HTML) {
@@ -189,6 +192,7 @@ function parseChildren(
             continue
           } else if (/[a-z]/i.test(s[2])) {
             emitError(context, ErrorCodes.X_INVALID_END_TAG)
+            // 解析标签
             parseTag(context, TagType.End, parent)
             continue
           } else {
@@ -200,6 +204,7 @@ function parseChildren(
             node = parseBogusComment(context)
           }
         } else if (/[a-z]/i.test(s[1])) {
+          // 解析Element
           node = parseElement(context, ancestors)
 
           // 2.x <template> with no directive compat
@@ -238,9 +243,10 @@ function parseChildren(
       }
     }
     if (!node) {
+      // 解析文本
       node = parseText(context, mode)
     }
-
+    // 向nodes push node
     if (isArray(node)) {
       for (let i = 0; i < node.length; i++) {
         pushNode(nodes, node[i])
@@ -338,6 +344,7 @@ function parseCDATA(
   __TEST__ && assert(startsWith(context.source, '<![CDATA['))
 
   advanceBy(context, 9)
+  // 递归解析
   const nodes = parseChildren(context, TextModes.CDATA, ancestors)
   if (context.source.length === 0) {
     emitError(context, ErrorCodes.EOF_IN_CDATA)
@@ -420,9 +427,10 @@ function parseElement(
 ): ElementNode | undefined {
   __TEST__ && assert(/^<[a-z]/i.test(context.source))
 
-  // Start tag.
+  // Start tag. 开始标签
   const wasInPre = context.inPre
   const wasInVPre = context.inVPre
+  // 父标签
   const parent = last(ancestors)
   const element = parseTag(context, TagType.Start, parent)
   const isPreBoundary = context.inPre && !wasInPre
@@ -435,6 +443,7 @@ function parseElement(
   // Children.
   ancestors.push(element)
   const mode = context.options.getTextMode(element, parent)
+  // 递归解析
   const children = parseChildren(context, mode, ancestors)
   ancestors.pop()
 
@@ -462,7 +471,7 @@ function parseElement(
 
   element.children = children
 
-  // End tag.
+  // End tag. 结束标签
   if (startsWithEndTagOpen(context.source, element.tag)) {
     parseTag(context, TagType.End, parent)
   } else {
@@ -524,7 +533,7 @@ function parseTag(
   const match = /^<\/?([a-z][^\t\r\n\f />]*)/i.exec(context.source)!
   const tag = match[1]
   const ns = context.options.getNamespace(tag, parent)
-
+  
   advanceBy(context, match[0].length)
   advanceSpaces(context)
 
@@ -532,7 +541,7 @@ function parseTag(
   const cursor = getCursor(context)
   const currentSource = context.source
 
-  // Attributes.
+  // Attributes. 解析属性
   let props = parseAttributes(context, type)
 
   // check <pre> tag
@@ -931,13 +940,15 @@ function parseAttributeValue(context: ParserContext): AttributeValue {
   return { content, isQuoted, loc: getSelection(context, start) }
 }
 
+// 解析插值
 function parseInterpolation(
   context: ParserContext,
   mode: TextModes
 ): InterpolationNode | undefined {
+  // 分隔符 '{{ ' '}}'
   const [open, close] = context.options.delimiters
   __TEST__ && assert(startsWith(context.source, open))
-
+  // 从open.length开始 获取闭合花括号的开始位置
   const closeIndex = context.source.indexOf(close, open.length)
   if (closeIndex === -1) {
     emitError(context, ErrorCodes.X_MISSING_INTERPOLATION_END)
@@ -945,11 +956,13 @@ function parseInterpolation(
   }
 
   const start = getCursor(context)
+  // 推进
   advanceBy(context, open.length)
   const innerStart = getCursor(context)
   const innerEnd = getCursor(context)
   const rawContentLength = closeIndex - open.length
   const rawContent = context.source.slice(0, rawContentLength)
+  // 解析出插值中的文本
   const preTrimContent = parseTextData(context, rawContentLength, mode)
   const content = preTrimContent.trim()
   const startOffset = preTrimContent.indexOf(content)
@@ -1006,6 +1019,7 @@ function parseText(context: ParserContext, mode: TextModes): TextNode {
 /**
  * Get text data with a given length from the current location.
  * This translates HTML entities in the text data.
+ * 从当前位置获取给定长度的文本数据
  */
 function parseTextData(
   context: ParserContext,
