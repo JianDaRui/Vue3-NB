@@ -53,9 +53,10 @@ const TransitionGroupImpl: ComponentOptions = {
     const state = useTransitionState()
     let prevChildren: VNode[]
     let children: VNode[]
-
+    // 更新阶段生命周期
     onUpdated(() => {
       // children is guaranteed to exist after initial render
+      // 初始化渲染之后确保子节点存在
       if (!prevChildren.length) {
         return
       }
@@ -73,11 +74,15 @@ const TransitionGroupImpl: ComponentOptions = {
 
       // we divide the work into three loops to avoid mixing DOM reads and writes
       // in each iteration - which helps prevent layout thrashing.
+      // 执行pending状态回调
       prevChildren.forEach(callPendingCbs)
+      // 记录子节点位置
       prevChildren.forEach(recordPosition)
+      // 计算子节点过渡前后信息 并应用过渡
       const movedChildren = prevChildren.filter(applyTranslation)
 
       // force reflow to put everything in position
+      // 强制出发重排 确保所有DOM都在正确的位置
       forceReflow()
 
       movedChildren.forEach(c => {
@@ -95,6 +100,7 @@ const TransitionGroupImpl: ComponentOptions = {
             removeTransitionClass(el, moveClass)
           }
         })
+        // 监听transitionend事件，过渡结束 移除监听事件
         el.addEventListener('transitionend', cb)
       })
     })
@@ -137,10 +143,11 @@ const TransitionGroupImpl: ComponentOptions = {
             child,
             resolveTransitionHooks(child, cssTransitionProps, state, instance)
           )
+          // 记录原始位置
           positionMap.set(child, (child.el as Element).getBoundingClientRect())
         }
       }
-
+      // 返回Vnode
       return createVNode(tag, null, children)
     }
   }
@@ -214,6 +221,7 @@ function hasCSSTransform(
     ? root
     : root.parentNode) as HTMLElement
   container.appendChild(clone)
+  // 获取过渡信息
   const { hasTransform } = getTransitionInfo(clone)
   container.removeChild(clone)
   return hasTransform

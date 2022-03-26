@@ -113,7 +113,6 @@ const TransitionHookValidator = [Function, Array]
 
 const BaseTransitionImpl: ComponentOptions = {
   name: `BaseTransition`,
-
   props: {
     mode: String,
     appear: Boolean,
@@ -136,12 +135,15 @@ const BaseTransitionImpl: ComponentOptions = {
   },
 
   setup(props: BaseTransitionProps, { slots }: SetupContext) {
+    // 获取当前渲染实例
     const instance = getCurrentInstance()!
+    // 使用自定义过度钩子
     const state = useTransitionState()
 
     let prevTransitionKey: any
-
+    // 返回渲染函数
     return () => {
+      // 获取新的子节点
       const children =
         slots.default && getTransitionRawChildren(slots.default(), true)
       if (!children || !children.length) {
@@ -158,7 +160,9 @@ const BaseTransitionImpl: ComponentOptions = {
 
       // there's no need to track reactivity for these props so use the raw
       // props for a bit better perf
+      // 脱响应式
       const rawProps = toRaw(props)
+      // 获取过渡模式
       const { mode } = rawProps
       // check mode
       if (__DEV__ && mode && !['in-out', 'out-in', 'default'].includes(mode)) {
@@ -177,18 +181,19 @@ const BaseTransitionImpl: ComponentOptions = {
       if (!innerChild) {
         return emptyPlaceholder(child)
       }
-
+      // 获取Enter阶段钩子
       const enterHooks = resolveTransitionHooks(
         innerChild,
         rawProps,
         state,
         instance
       )
+      // 设置过渡钩子
       setTransitionHooks(innerChild, enterHooks)
-
+      // 获取旧的子阶段
       const oldChild = instance.subTree
       const oldInnerChild = oldChild && getKeepAliveChild(oldChild)
-
+      
       let transitionKeyChanged = false
       const { getTransitionKey } = innerChild.type as any
       if (getTransitionKey) {
@@ -207,6 +212,7 @@ const BaseTransitionImpl: ComponentOptions = {
         oldInnerChild.type !== Comment &&
         (!isSameVNodeType(innerChild, oldInnerChild) || transitionKeyChanged)
       ) {
+        // 获取原有子节点的动效钩子
         const leavingHooks = resolveTransitionHooks(
           oldInnerChild,
           rawProps,
@@ -214,17 +220,22 @@ const BaseTransitionImpl: ComponentOptions = {
           instance
         )
         // update old tree's hooks in case of dynamic transition
+        // 在动态过渡的情况下更新旧节点的动效钩子函数
         setTransitionHooks(oldInnerChild, leavingHooks)
         // switching between different views
+        // 不同过渡模式之间切换
         if (mode === 'out-in') {
+          // 当前元素先进行离开过渡，完成之后新元素过渡进入。
           state.isLeaving = true
           // return placeholder node and queue update when leave finishes
+          // 当离开之后 强制刷新
           leavingHooks.afterLeave = () => {
             state.isLeaving = false
             instance.update()
           }
           return emptyPlaceholder(child)
         } else if (mode === 'in-out' && innerChild.type !== Comment) {
+          // 新元素先进行进入过渡，完成之后当前元素过渡离开
           leavingHooks.delayLeave = (
             el: TransitionElement,
             earlyRemove,
@@ -245,7 +256,7 @@ const BaseTransitionImpl: ComponentOptions = {
           }
         }
       }
-
+      
       return child
     }
   }
@@ -278,6 +289,7 @@ function getLeavingNodesForType(
 
 // The transition hooks are attached to the vnode as vnode.transition
 // and will be called at appropriate timing in the renderer.
+// 解析过渡钩子
 export function resolveTransitionHooks(
   vnode: VNode,
   props: BaseTransitionProps<any>,
@@ -342,7 +354,6 @@ export function resolveTransitionHooks(
       }
       callHook(hook, [el])
     },
-
     enter(el) {
       let hook = onEnter
       let afterHook = onAfterEnter

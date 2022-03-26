@@ -43,7 +43,8 @@ const TreeItem = {
     function toggle() {
       state.open = !state.open
     }
-    
+    const { enter } = props
+    console.log(enter)
     const count = ref(1)
     const plusOne = computed(function add() {count.value + state.number})
     onMounted(() => {
@@ -79,7 +80,7 @@ const TreeItem = {
 
 <!-- the app root element -->
 <ul id="demo">
-  <tree-item class="item" :model="treeData"></tree-item>
+  <tree-item class="item" :model="treeData" @enter="handleEnter"></tree-item>
 </ul>
 
 <script>
@@ -118,7 +119,12 @@ Vue.createApp({
   },
   data: () => ({
     treeData
-  })
+  }),
+  methods: {
+    handleEnter() {
+      console.log('1')
+    }
+  },
 }).mount('#demo')
 </script>
 

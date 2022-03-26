@@ -94,6 +94,7 @@ const callHook = (
  * Check if a hook expects a callback (2nd arg), which means the user
  * intends to explicitly control the end of the transition.
  */
+// 检查钩子函数的参数，如果参数大于1，说明用户在控制过度的结束
 const hasExplicitCallback = (
   hook: Function | Function[] | undefined
 ): boolean => {
@@ -113,7 +114,7 @@ export function resolveTransitionProps(
       ;(baseProps as any)[key] = (rawProps as any)[key]
     }
   }
-
+  // css === false 完全通过 钩子触发动画
   if (rawProps.css === false) {
     return baseProps
   }
@@ -152,10 +153,11 @@ export function resolveTransitionProps(
       legacyLeaveFromClass = toLegacyClass(leaveFromClass)
     }
   }
-
+  // 规范间隔，间隔可以设置为数组形式
   const durations = normalizeDuration(duration)
   const enterDuration = durations && durations[0]
   const leaveDuration = durations && durations[1]
+  // 获取绑定的钩子函数
   const {
     onBeforeEnter,
     onEnter,
@@ -167,23 +169,29 @@ export function resolveTransitionProps(
     onAppearCancelled = onEnterCancelled
   } = baseProps
 
+  // 完成进入状态
   const finishEnter = (el: Element, isAppear: boolean, done?: () => void) => {
     removeTransitionClass(el, isAppear ? appearToClass : enterToClass)
     removeTransitionClass(el, isAppear ? appearActiveClass : enterActiveClass)
     done && done()
   }
-
+  // 完成离开
   const finishLeave = (el: Element, done?: () => void) => {
     removeTransitionClass(el, leaveToClass)
     removeTransitionClass(el, leaveActiveClass)
     done && done()
   }
-
+  // 创建进入时的钩子
   const makeEnterHook = (isAppear: boolean) => {
     return (el: Element, done: () => void) => {
       const hook = isAppear ? onAppear : onEnter
+      // 定义resolve函数
       const resolve = () => finishEnter(el, isAppear, done)
+      // 执行用户绑定的钩子，并传递resolve参数
       callHook(hook, [el, resolve])
+
+      // 在下一帧执行的时候移除class
+      // 如果isApper为true移除from否则移除enter
       nextFrame(() => {
         removeTransitionClass(el, isAppear ? appearFromClass : enterFromClass)
         if (__COMPAT__ && legacyClassEnabled) {
@@ -192,6 +200,7 @@ export function resolveTransitionProps(
             isAppear ? legacyAppearFromClass : legacyEnterFromClass
           )
         }
+        // 然后添加新的class
         addTransitionClass(el, isAppear ? appearToClass : enterToClass)
         if (!hasExplicitCallback(hook)) {
           whenTransitionEnds(el, type, enterDuration, resolve)
@@ -199,10 +208,12 @@ export function resolveTransitionProps(
       })
     }
   }
-
+  // 混入经过改写的钩子
   return extend(baseProps, {
     onBeforeEnter(el) {
+      // 首先执行用户的钩子
       callHook(onBeforeEnter, [el])
+      // 添加下一阶段的Class
       addTransitionClass(el, enterFromClass)
       if (__COMPAT__ && legacyClassEnabled) {
         addTransitionClass(el, legacyEnterFromClass)
@@ -210,15 +221,17 @@ export function resolveTransitionProps(
       addTransitionClass(el, enterActiveClass)
     },
     onBeforeAppear(el) {
+      // 执行用户绑定的钩子
       callHook(onBeforeAppear, [el])
+      // 绑定新的类
       addTransitionClass(el, appearFromClass)
       if (__COMPAT__ && legacyClassEnabled) {
         addTransitionClass(el, legacyAppearFromClass)
       }
       addTransitionClass(el, appearActiveClass)
     },
-    onEnter: makeEnterHook(false),
-    onAppear: makeEnterHook(true),
+    onEnter: makeEnterHook(false), // isAppear === false
+    onAppear: makeEnterHook(true), // isAppear === true
     onLeave(el, done) {
       const resolve = () => finishLeave(el, done)
       addTransitionClass(el, leaveFromClass)
@@ -226,6 +239,7 @@ export function resolveTransitionProps(
         addTransitionClass(el, legacyLeaveFromClass)
       }
       // force reflow so *-leave-from classes immediately take effect (#2593)
+      // 强制重排
       forceReflow()
       addTransitionClass(el, leaveActiveClass)
       nextFrame(() => {
@@ -287,7 +301,7 @@ function validateDuration(val: unknown) {
     )
   }
 }
-
+// 添加类
 export function addTransitionClass(el: Element, cls: string) {
   cls.split(/\s+/).forEach(c => c && el.classList.add(c))
   ;(
@@ -295,7 +309,7 @@ export function addTransitionClass(el: Element, cls: string) {
     ((el as ElementWithTransition)._vtc = new Set())
   ).add(cls)
 }
-
+// 移除类
 export function removeTransitionClass(el: Element, cls: string) {
   cls.split(/\s+/).forEach(c => c && el.classList.remove(c))
   const { _vtc } = el as ElementWithTransition
@@ -308,6 +322,7 @@ export function removeTransitionClass(el: Element, cls: string) {
 }
 
 function nextFrame(cb: () => void) {
+  // 进行两层包裹，在下一帧的时候执行cb
   requestAnimationFrame(() => {
     requestAnimationFrame(cb)
   })
@@ -315,6 +330,7 @@ function nextFrame(cb: () => void) {
 
 let endId = 0
 
+// 当过度结束的时候
 function whenTransitionEnds(
   el: Element & { _endId?: number },
   expectedType: TransitionProps['type'] | undefined,
@@ -434,6 +450,7 @@ function toMs(s: string): number {
 }
 
 // synchronously force layout to put elements into a certain state
+// 强制重排
 export function forceReflow() {
   return document.body.offsetHeight
 }

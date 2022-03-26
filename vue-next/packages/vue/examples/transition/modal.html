@@ -2,7 +2,12 @@
 
 <!-- template for the modal component -->
 <script type="text/x-template" id="modal-template">
-  <transition name="modal">
+  <transition 
+    name="modal"
+    @enter="enter"
+    :duration='10000' 
+    :css="false"
+  >
     <div v-if="show" class="modal-mask">
       <div class="modal-wrapper">
         <div class="modal-container">
@@ -35,7 +40,16 @@
 <script>
 const Modal = {
   template: '#modal-template',
-  props: ['show']
+  props: ['show'],
+  methods: {
+    // 当与 CSS 结合使用时
+    // 回调函数 done 是可选的
+    enter(el, done) {
+      // ...
+      console.log('enter')
+      done()
+    },
+  }
 }
 </script>
 

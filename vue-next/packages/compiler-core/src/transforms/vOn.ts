@@ -162,6 +162,6 @@ export const transformOn: DirectiveTransform = (
     // components.
     ret.props[0].value = context.cache(ret.props[0].value)
   }
-
+  
   return ret
 }

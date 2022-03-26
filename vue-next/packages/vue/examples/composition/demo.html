@@ -1,9 +1,6 @@
 <script src="../../dist/vue.global.js"></script>
 <script src="../../../../node_modules/lodash/lodash.min.js"></script>
-<div id="app">
-  <input :value="input" @input="update" />
-  <div>{{output}}</div>
-</div>
+
 
 <script>
 const { ref, computed, effect } = Vue
@@ -20,10 +17,13 @@ Vue.createApp({
         // 依赖收集
         console.log(input.value)
     })
-    return {
-      input,
-      output,
-      update
+    return () => {
+      return (
+        <div id="app">
+          <input value={input} onInput={update}/>
+          <div>{output}</div>
+        </div>
+      )
     }
   }
 }).mount('#app')
