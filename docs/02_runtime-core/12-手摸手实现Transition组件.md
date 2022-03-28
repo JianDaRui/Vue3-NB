@@ -1,25 +1,19 @@
 # 手摸手实现Transition
 
-Assign: Anonymous
-Date Created: March 1, 2022 5:25 PM
-Due Date: March 17, 2022
-Priority: High 🔥
-Status: In Progress
-
 `xdm`好，我是剑大瑞。
 
-本篇我们主要通过实现一个自定义的`Transition`组件，从而了解其内部原理。
+本篇内容旨在通过自己实现`Transition`组件，从而了解其内部原理。
 
-> 如果你还没有使用过`Transition`组件或者对其不熟悉，那么我建议你可以先学习官方文档，当熟悉了`Transition`组件之后，但是又对其原理有所好奇，就可以再回来学习这篇文章。[传送门](https://v3.cn.vuejs.org/guide/transitions-overview.html)。
+> 如果你还没有使用过`Transition`组件或者对其不熟悉，那么我建议你可以先学习官方文档，写一些demo，当熟悉了`Transition`组件之后，但是又对其原理有所好奇，就可以再回来学习这篇文章。官方文档👉[传送门](https://v3.cn.vuejs.org/guide/transitions-overview.html)。
 > 
 
 ## 前言
 
-通过官方文档可以知道，当使用`Transition`组件的时候，我们可以通过配置`Transition`组件的`props`控制组件的进场、过渡、离场过渡或者动画效果。
+通过官方文档可以知道，当使用`Transition`组件的时候，我们可以通过配置`Transition`组件的`props`控制组件的进场过渡、离场过渡状态、动画效果。
 
-在配置过程中需要为组件`name`，而Vue会将name字段与不同的过渡阶段名称进行合并，在不同的阶段为我们的`dom`添加类名或者移除类名。
+配置`props`的过程中，重要的是指定`name`。`Vue`会将`name`字段与不同的过渡阶段名称进行组合，在不同的阶段为我们的`dom`添加类名或者移除类名。
 
-这里插一张官网的图：
+这里借用官网的示意图：
 
 ![transitions](../assets/images/transition/transitions.svg)
 
@@ -29,8 +23,6 @@ Status: In Progress
 - 当组件挂载的时候，`class`由`v-enter-from`过渡为`v-enter-to`。切换的中间过程我们称它为`v-enter-active`。
 - 当组件卸载的时候，`class`由`v-leave-from`过渡为`v-leave-to`。切换的过程我们称它为`v-leave-active`。
 - 在由`enter-from⇒enter-to`或者`leave-from⇒leave-to`的阶段，我们可以指定组件的初始和最终样式。在`enter-active` & `leave-active`阶段我们可以指定组件的过渡或者动画效果。
-
-接下来就开始吧。
 
 首先我们需要调用`defineComponent` API来定义一个`MyTransition`组件，通过`setup`获取插槽中的内容。
 
@@ -45,26 +37,28 @@ Status: In Progress
      **就是说`MyTransition`组件并不需要有自己的状态，只做状态的搬运工。**
 
 
-## 设计新的`Props`
+## `Props`设计
 
-但是我们怎么设计新的`props`呢？
+但是我们怎么设计`props`呢？
 
 考虑这个问题，还需要回到`Transition`组件的核心逻辑在于：
 
-- 在组件的挂载阶段，我们需要将`enter-from`至`enter-to`阶段的过渡或者动画效果附加到`DOM`元素上。
-- 在组件的卸载卸载，我们需要将`leave-from`至`leave-to`阶段的过渡或者动画效果附加到`DOM`元素上。
+- 在组件的挂载阶段，我们需要将`enter-from`至`enter-to`阶段的过渡或者动画效果`class`附加到`DOM`元素上。
+- 在组件的卸载卸载，我们需要将`leave-from`至`leave-to`阶段的过渡或者动画效果`class`附加到`DOM`元素上。
 
 ![WX20220313-222847@2x.png](../assets/images/transition/WX20220313-2228472x.png)
 
-那我们是否需要在`mounted`、`unmounted` API钩子中实现`class`的移除和添加呢？
+那我们是否需要通过`mounted`、`unmounted` API钩子中实现`class`的移除和添加呢？
 
-其实不需要。在`Vue` 中的`Transition`组件是与渲染器的`patch`逻辑高度依赖的。
+答案是：其实不需要。在`Vue` 中的`Transition`组件是与渲染器的`patch`逻辑高度依赖的。
+
+### 渲染器处理方式
 
 在渲染器中，可以在*`mountElement`函数中，处理`Enter`阶段的过渡或者动画效果。在`remove`函数中处理`Leave`阶段的过渡或者动画效果。*
 
 这里我们在此简单看下这两个函数的代码：
 
-- `mountElement`函数简略版。
+- `mountElement`函数简略版，`mountElement`函数负责挂载元素。
 
 ```jsx
 // 挂载元素节点
@@ -90,7 +84,7 @@ const mountElement = (vnode,...args) => {
 };
 ```
 
-- `remove`函数简略版
+- `remove`函数简略版，`remove`函数主要负责从父元素中移除元素。
 
 ```jsx
 // 移除Vnode
@@ -121,6 +115,8 @@ const remove = vnode => {
   }
 };
 ```
+
+- `move`函数简略版，`move`函数主要负责元素的移动，插入父元素。
 
 ```jsx
 const move = (vnode, container, anchor, moveType, parentSuspense = null) => {
@@ -154,11 +150,15 @@ const move = (vnode, container, anchor, moveType, parentSuspense = null) => {
 };
 ```
 
-通过上面的代码，可以知道，`Vue3`是通过渲染器执行`Transition`组件自定义的钩子函数，来实现过渡效果的控制的。
+通过上面的代码，可以知道，`Vue3`是通过渲染器执行`Transition`组件自定义的**钩子函数**，来实现过渡效果的控制的。
 
-所以可以通过为`props`定义钩子函数，并绑定到`transition`组件，从而实现对动效的控制。
+所以我们可以通过为`props`定义钩子函数，并绑定到`transition`组件，在元素的`patch`阶段，执行钩子函数，从而实现对动效的控制。
 
-为此我们可以参考官方文档中的[JavaScript钩子](https://v3.cn.vuejs.org/guide/transitions-enterleave.html#javascript-%E9%92%A9%E5%AD%90)部分，定义`Enter` & `Appear` & `Leave`阶段的钩子。
+### `Javascript`钩子处理`props`
+
+为此我们可以参考官方文档中的[JavaScript钩子](https://v3.cn.vuejs.org/guide/transitions-enterleave.html#javascript-%E9%92%A9%E5%AD%90)部分，为`props`定义`Enter` & `Appear` & `Leave`阶段的钩子。
+
+在钩子函数中操作动效`class`的移除或添加操作。
 
 ```jsx
 const MyTransition = defineComponent({
@@ -187,6 +187,11 @@ const MyTransition = defineComponent({
   setup(props, { slots }) {
     const children = slots.default()
     const newProps = {}
+    
+    for (const key in props) {
+      newProps[key] = props[key]
+  	}
+    
     const {
       name = 'v',
       type,
@@ -201,7 +206,8 @@ const MyTransition = defineComponent({
       leaveActiveClass = `${name}-leave-active`,
       leaveToClass = `${name}-leave-to`
     } = props
-
+		
+    // 为newProps绑定够子函数
     Object.assign(newProps, {
       // Enter阶段
       onBeforeEnter(el) {
@@ -213,31 +219,36 @@ const MyTransition = defineComponent({
       onEnterCancelled(el) {
 	    },
 			// Apear阶段
-			onBeforeAppear() {
+			onBeforeAppear(el) {
 			},
-			onAppear() {
+			onAppear(el) {
 			},
-			onAppearCancelled() {
-			}
+			onAppearCancelled(el) {
+			},
       // Leave阶段
       onLeave(el) {
       },
       onLeaveCancelled(el) {
       },
     })
-
+    
+		// 为子元素绑定经过处理的newProps
     return h(children, newProps, null)
   }
 })
 ```
 
-钩子函数都会接受一个`el`参数，它代表当前需要进行添加过渡动效的`DOM`，渲染器在`patch`阶段传入。
+通过上面的代码，可以知道，通过解构`props`，组合成各动效阶段的`class`。
+
+钩子函数都会接受一个`el`参数，它代表当前需要进行添加过渡动效的`DOM`，由渲染器在`patch`阶段传入。
+
+接下来的工作就是在`JavaScript`钩子函数中，操作`class`。
 
 ## 完善钩子函数
 
-接下来的逻辑就是在合适的钩子中为`el`添加或者移除`class`。
+`Javascript`钩子函数的主要职责是为`el`添加或者移除动效`class`。
 
-但是我们需要先明确下每个类应该在何时添加？何时移除？
+但是我们需要先明确每个类应该在何时添加？何时移除？
 
 在进入/离开的过渡中，会有 6 个 `class` 切换。
 
@@ -252,11 +263,11 @@ const MyTransition = defineComponent({
 
 由此可知，我们需要：
 
-- 在*onBeforeEnter函数中完成*enterFromClass *&* enterActiveClass*的添加。*
-- 在下一帧中完成enterFromClass的移除，*enterToClass的添加。*
-- *当Enter阶段的动画结束之后需要完成*enterActiveClass & *enterToClass移除工作。*
+- 在`onBeforeEnter`函数中完成`enterFromClass` *&* `enterActiveClass`添加工作。
+- 在`onEnter`函数中完成下一帧绘制的间隙，完成`enterFromClass`的移除，`enterToClass`的添加工作。
+- 当`Enter`阶段的动画结束之后需要完成`enterActiveClass` & `enterToClass`移除工作。
 
-我们可以先定义两个用于操作class的函数，方便在多个钩子中使用。
+为了方便`class`的添加 || 移除操作我们可以先定义两个用于操作`class`的函数，方便在多个钩子中使用。
 
 ```jsx
 // 添加类
@@ -269,7 +280,7 @@ function removeTransitionClass(el, cls) {
 }
 ```
 
-则我们可以通过上面两个函数，完善onBeforeEnter & onEnter钩子：
+通过上面两个函数，可以完成`onBeforeEnter` & `onEnter`钩子：
 
 ```jsx
 setup() {
@@ -296,18 +307,20 @@ setup() {
 }
 ```
 
+### 两个问题
+
 上面的代码会有两个问题：
 
-1. requestAnimationFrame中的回调函数真的能如我们所期望的那样在下一帧中执行吗？
-2. 如何实现动效结束之后，对class的移除？
+1. `requestAnimationFrame`中的回调函数真的能如我们所期望的那样在**下一帧**中执行吗？
+2. 如何实现动效结束之后，对`class`的移除？
 
-**先说第一个问题，答案是否定的。**requestAnimationFrame中的回调，会在当前帧就完成执行。那是为什么呢？
+**先说第一个问题，答案是否定的。**`requestAnimationFrame`中的回调，会在当前帧就完成执行。那是为什么呢？
 
 通过查阅[MDN](https://developer.mozilla.org/zh-CN/docs/Web/API/Window/requestAnimationFrame)，可以知道。通过`requestAnimationFrame`注册的回调函数通常会在浏览器下一次重绘之前执行，而不是在下一帧中执行。
 
 **如果想在浏览器下次重绘之前继续更新下一帧动画，那么回调函数自身必须再次调用`window.requestAnimationFrame()`**
 
-所以我们需要将onEnter中的代码改写为：
+为了完成在下一帧中对`class`的移除 && 添加。需要将`onEnter`中的代码改写为：
 
 ```jsx
 setup() {
@@ -333,7 +346,7 @@ setup() {
 
 `transitionend`事件或者`animationend`事件，然后移除动效`class`。
 
-继续改写onEnter函数：
+继续改写`onEnter`函数：
 
 ```jsx
 onEnter(el) {
@@ -347,7 +360,7 @@ onEnter(el) {
     requestAnimationFrame(() => {
       removeTransitionClass(el, enterFromClass) 
       addTransitionClass(el, enterToClass)
-      // 监听动效结束事件
+      // 监听动效结束事件，type由props传入
       el.addEventListener(`${type}end`, resolve)
     })
   })
@@ -355,12 +368,13 @@ onEnter(el) {
 // 省略部分代码...
 ```
 
-至此我们就写完了Enter阶段的两个钩子函数。
+至此就完成`Enter`阶段的两个钩子函数。
 
-同样的逻辑，我们可以实现Leave阶段的钩子函数。
+同样的逻辑，我们可以实现`Leave`阶段的钩子函数。
 
 ```jsx
-onLeave(el, done) {
+onLeave(el) {
+  // 定义resolve回调
   const resolve = () => {
 		removeTransitionClass(el, leaveToClass)
     removeTransitionClass(el, leaveActiveClass)
@@ -368,6 +382,8 @@ onLeave(el, done) {
 	// 直接添加leaveFromClass
   addTransitionClass(el, leaveFromClass)
   addTransitionClass(el, leaveActiveClass)
+  
+  // 离开阶段的下一帧中移除class
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       removeTransitionClass(el, leaveFromClass)
@@ -378,11 +394,18 @@ onLeave(el, done) {
 }
 ```
 
-与Enter阶段不同的是Leave阶段的fromClass & activeClass并没有在beforeOnLeave阶段进行，而是直接在onLeave阶段开始。
+与`Enter`阶段不同的是`Leave`阶段的`fromClass` & `activeClass`并没有在`beforeOnLeave`阶段进行，而是直接在`onLeave`阶段开始。
 
-这就有一个问题，我们直接添加的leaveFromClass并不能让动效立即生效，这涉及到一个[issue](https://github.com/vuejs/vue-next/commit/e2618a632d4add2819ffb8b575af0da189dc3204)，其大意是：
+这就有一个问题，我们直接添加的`leaveFromClass`并不能让动效立即生效，这涉及到一个👉[issue](https://github.com/vuejs/vue-next/commit/e2618a632d4add2819ffb8b575af0da189dc3204)
 
-为此我们需要在添加了leaveFromClass后，触发一次强制reflow。
+> 相关链接
+>
+> - issue: https://github.com/vuejs/core/issues/2531
+> - 复现链接：https://codesandbox.io/s/competent-hermann-b1s5q?file=/src/App.vue
+
+其大意是：当通过`state`控制元素的`style`做隐藏或者显示时，`Transition`组件`Leave`阶段动效并没有按符合预期的效果进行转换。
+
+为此我们需要在添加了`leaveFromClass`后，童工强制触发一次强制`reflow`，使 -leave-from classes可以立即生效。
 
 ```jsx
 onLeave(el, done) {
@@ -407,7 +430,7 @@ onLeave(el, done) {
 }
 ```
 
-onLeaveCancelled钩子仅用于v-show中，会取消leaveActive & leaveTo的动效。这个实现并不复杂。
+`onLeaveCancelled`钩子仅用于`v-show`中，会取消`leaveActive` & `leaveTo`的动效。这个实现并不复杂。
 
 ```jsx
 onLeaveCancelled(el) {
@@ -416,11 +439,11 @@ onLeaveCancelled(el) {
 }
 ```
 
-自此，我们已经完成了Enter & Leave阶段的动效钩子实现。
+自此，我们已经完成了`Enter` & `Leave`阶段的动效钩子实现。
 
-接下来还需要实现Appear阶段的钩子函数。Appear钩子函数的调用逻辑为当用户为props配置了appear = true时，则会在初始渲染阶段就出发动效。
+接下来还需要实现`Appear`阶段的钩子函数。`Appear`钩子函数的调用逻辑为当用户为`props`配置了`appear = true`时，则会在初始渲染阶段就出发动效。
 
-其实现与Enter阶段基本一样：
+其实现逻辑与`Enter`阶段基本一样：
 
 ```jsx
 onBeforeAppear(el) {
@@ -449,11 +472,11 @@ onAppearCancelled(el) {
 },
 ```
 
-至此我们已经完成了Enter Appear Leave阶段的钩子定义。但是会发现代码中会有很多冗余。代码逻辑有很多重复之处。为此我们可以将代码进行优化。
+至此我们已经完成了`Enter Appear Leave`阶段的钩子定义。但是会发现代码中会有很多冗余。代码逻辑有很多重复之处。为此我们可以将代码进行优化。
 
 ## 重构
 
-1. 将过渡开始需要添加class的部分抽离为startBefore，将过渡结束后需要移除class的部分抽离为finishEnter、finishLeave函数。
+1. 将过渡开始需要添加`class`的部分抽离为`startBefore`，将过渡结束后需要移除`class`的部分抽离为`finishEnter`、`finishLeave`函数，通过参数`isAppear`来判断添加或者移除哪些`class`。
 
 ```jsx
 const startBefore = (el, isAppear) => {
@@ -471,7 +494,7 @@ const finishLeave = (el) => {
 };
 ```
 
-1. 将嵌套的requestAnimationFrame抽离为nextFrame函数。
+1. 将嵌套的`requestAnimationFrame`抽离为`nextFrame`函数。
 
 ```jsx
 function nextFrame(cb) {
@@ -481,7 +504,7 @@ function nextFrame(cb) {
 }
 ```
 
-1. 将监听transitionend & animationend事件的逻辑抽离为whenTransitionEnds函数
+1. 将监听`transitionend` & `animationend`事件的逻辑抽离为`whenTransitionEnds`函数
 
 ```jsx
 function whenTransitionEnds(el, type, resolve) {
@@ -500,7 +523,7 @@ function whenTransitionEnds(el, type, resolve) {
 }
 ```
 
-1. onEnter与onAppear函数逻辑存在重复之处，我们可以定义一个高阶函数，用于返回钩子函数。
+1. `onEnter`与`onAppear`函数逻辑存在重复之处，我们可以定义一个高阶函数，用于返回钩子函数。
 
 ```jsx
 const makeEnterHook = (isAppear) => {
@@ -644,11 +667,11 @@ const MyTransition = defineComponent({
 
 经过重构后，代码简洁了很多。
 
-## 过渡动效持续实现
+## 持续时间实现
 
 这里还有一个小功能需要实现，就是设置显性的过渡持续时间。
 
-当用户设置duration属性的时候，可以使其中一些嵌套的内部元素相比于过渡效果的根元素具有延迟的或更长的过渡效果。
+当用户设置`duration`属性的时候，可以使其中一些嵌套的内部元素相比于过渡效果的根元素具有延迟的或更长的过渡效果。
 
 使用的时候，你可以用 `<transition>` 组件上的 `duration` prop 显式指定过渡持续时间 (以毫秒计)：
 
@@ -670,7 +693,7 @@ const MyTransition = defineComponent({
 
 在通常情况下，我们会通过监听`transitionend` || `animationend`事件。来移除动效`class`。现在我们需要**等待`durationTime`**之后才能移除。
 
-故我们可是使用`setTimeout`来实现这个效果，只需将`durationTime`传入`whenTransitionEnds`函数，稍微调整一下逻辑即可。
+那我们可以等待`duration`之后，再移除动效`class`。可以使用`setTimeout`来实现这个持续效果，只需将`durationTime`传入`whenTransitionEnds`函数。`whenTransitionEnds`函数通过调用`setTimeout`来开启一个延时任务，等待`duration`之后，执行移除`class`的回调。接下来稍微调整一下代码逻辑即可。
 
 ```js
 // 定义normalizeDuration函数
@@ -718,21 +741,31 @@ function whenTransitionEnds(el, type, explicitTimeout,resolve) {
 		// 每次监听时，先移除原有的监听事件
 	  el.removeEventListener(endEvent, onEnd);
 	  resolveIfNotStale();
-	}; 
+	};
+  const onEnd = (e) => {
+	  if (e.target === el) {
+      end();
+	  }
+	};
+  el.addEventListener(endEvent, onEndd)
 }
 ```
 
+通过改写`whenTransitionEnds`函数可以知道，当设置`duration`时，先判断`explicitTimeout`是否存在，如果存在，直接通过`setTimeout`来实现延迟移除`class`。
+
 ## `JavaScript`钩子实现
 
-Vue的`Transition`组件除了可以使用`css`来控制组件的动效，还可以通过`JavaScript`来控制。
+`Vue`的`Transition`组件除了可以使用`css`来控制组件的动效，还可以通过`JavaScript`来控制。
 
-当需要仅使用`JavaScript`控制时，需要传`css = false`，然后再`methods`中配置相应的钩子函数就可以了。
+当动效需要使用`JavaScript`控制时，需要在`methods`中配置相应的钩子函数。
 
-当需要使用`css`来控制动效时，同时需要通过`JavaScript`钩子做些额外操作也是可以的。
+如果需要通过`JavaScript`控制整个动效过程，需要在`props`中设置，`css = false`。
 
 但是再开始`JavaScript`钩子之前，我们做一些调整。
 
 通过前面的代码，可以发现，我们的`MyTransition`的大部分逻辑其实是在处理`props`，定义钩子函数。
+
+### 分离
 
 接下来为了让代码不那么臃肿，我们可以在设计一个`MyTransitionBase`组件，该组件主要负责：
 
@@ -786,7 +819,7 @@ const MyTransitionBase = defineComponent({
 };)
 ```
 
-我们需要再处理下`MyTransition`组件。
+我们需要再处理下`MyTransition`组件。`MyTransition`组件仅负责props的处理，在`MyTransition`组件中，会将`class`动效转为`JavaScript`动效钩子，如果用户通知绑定`JavaScript`钩子，只需在`Javascript`钩子函数中调用配置的钩子即可。
 
 ```jsx
 import { h } from 'vue'
@@ -868,7 +901,7 @@ function resolveMyTransitionProps(rawProps) {
 
 ## 处理`MyTransitionBase`
 
-`MyTransitionBase`组件主要负责`JavaScript`钩子的调用。
+`MyTransitionBase`组件主要负责`JavaScript`钩子的调用。`MyTransition`组件相当与为class动效与JavaScript钩子做了层兼容合并处理。
 
 接下来我们在`MyTransitionBase`组件中完成`Javascipt`钩子与子节点的绑定。
 
@@ -895,7 +928,7 @@ function resolveMyTransitionProps(rawProps) {
 - `MyTransitionBase`组件挂载执行`onEnter`钩子
 - 否则执行`onAppear`钩子
 
-```jsx
+```js
 import { onMounted, onBeforeUnmount } from 'vue'
 const MyTransitionBase = defineComponent({
   // 省略部分代码...
@@ -937,6 +970,19 @@ const MyTransitionBase = defineComponent({
   }
 })
 
+// 用于给虚拟节点绑定hooks, 如果是组件类型，则递归绑定hooks
+function setTransitionHooks(vnode, hooks) {
+  if (vnode.component) {
+    setTransitionHooks(vnode.component.subTree, hooks);
+  } else {
+    vnode.transition = hooks;
+  }
+}
+```
+
+定义`resolveTransitionHooks`函数，负责解析动效 `hooks`。
+
+```js
 // 负责解析Hooks
 function resolveTransitionHooks(vnode, props, state) {
   const { 
@@ -995,15 +1041,9 @@ function resolveTransitionHooks(vnode, props, state) {
   };
   return hooks;
 }
-// 用于给虚拟节点绑定hooks, 如果是组件类型，则递归绑定hooks
-function setTransitionHooks(vnode, hooks) {
-  if (vnode.component) {
-    setTransitionHooks(vnode.component.subTree, hooks);
-  } else {
-    vnode.transition = hooks;
-  }
-}
 ```
+
+
 
 通过上面的代码可以知道，JavaScript钩子函数，主要是在beforeEnter、enter、leave阶段进行调用的。
 
@@ -1283,3 +1323,7 @@ function resolveTransitionHooks(vnode, props, state, instance) {
 至此，我们已经完成了MyTransition组件从class支持到javacsript钩子支持，再到过渡模式的支持工作。
 
 ## 总结
+
+- nextAnimationFrame
+- 钩子与渲染器
+- 过渡模式
