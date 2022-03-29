@@ -665,7 +665,9 @@ const MyTransition = defineComponent({
 })
 ```
 
-经过重构后，代码简洁了很多。
+经过重构后，代码简洁了很多。在来张图片总结下上述过程。
+
+![transition-hooks](../assets/images/transition/transition-hooks.png)
 
 ## 持续时间实现
 
@@ -901,7 +903,9 @@ function resolveMyTransitionProps(rawProps) {
 
 ## 处理`MyTransitionBase`
 
-`MyTransitionBase`组件主要负责`JavaScript`钩子的调用。`MyTransition`组件相当与为class动效与JavaScript钩子做了层兼容合并处理。
+拆分后`MyTransitionBase`组件主要负责`JavaScript`钩子的调用。
+
+`MyTransition`组件为`class`动效与`JavaScript`钩子做了层兼容合并处理，最终都以`JavaScript`钩子的形式传递给`MyTransitionBase`组件。
 
 接下来我们在`MyTransitionBase`组件中完成`Javascipt`钩子与子节点的绑定。
 
@@ -969,18 +973,9 @@ const MyTransitionBase = defineComponent({
       };
   }
 })
-
-// 用于给虚拟节点绑定hooks, 如果是组件类型，则递归绑定hooks
-function setTransitionHooks(vnode, hooks) {
-  if (vnode.component) {
-    setTransitionHooks(vnode.component.subTree, hooks);
-  } else {
-    vnode.transition = hooks;
-  }
-}
 ```
 
-定义`resolveTransitionHooks`函数，负责解析动效 `hooks`。
+定义`resolveTransitionHooks`函数，负责解析动效`hooks`。
 
 ```js
 // 负责解析Hooks
@@ -1043,9 +1038,22 @@ function resolveTransitionHooks(vnode, props, state) {
 }
 ```
 
+定义函数，用于将`hooks`绑定至`Vnode`
+
+```js
+// 用于给虚拟节点绑定hooks, 如果是组件类型，则递归绑定hooks
+function setTransitionHooks(vnode, hooks) {
+  if (vnode.component) {
+    setTransitionHooks(vnode.component.subTree, hooks);
+  } else {
+    vnode.transition = hooks;
+  }
+}
+```
 
 
-通过上面的代码可以知道，JavaScript钩子函数，主要是在beforeEnter、enter、leave阶段进行调用的。
+
+通过上面的代码可以知道，`JavaScript`钩子函数，主要是在`beforeEnter`、`enter`、`leave`阶段进行调用的。
 
 接下来，完成过渡模式的实现。
 
@@ -1053,28 +1061,30 @@ function resolveTransitionHooks(vnode, props, state) {
 
 过渡模式主要是为了解决多个元素之间的过渡效果，在不使用过渡模式的时候，元素之间过渡时，会被同时绘制。
 
-这里是因为transition组件默认进入和离开同时发生。
+这里是因为`transition`组件默认进入和离开同时发生。
 
 但是有时，我们需要处理更复杂的动作，比如需要使当前元素提前离开，完成之后再让新的元素进入等情况。
 
 这就涉及到元素组件间过渡状态的协调。
 
-transition组件为用于提供了两种模式：
+`transition`组件为用于提供了两种模式：
 
 - `out-in`: 当前元素先进行离开过渡，完成之后新元素过渡进入。
 - `in-out`: 新元素先进行进入过渡，完成之后当前元素过渡离开。
 
 接下来就是获取当前元素与新元素，并在合适的时机执行对应的钩子就可以。
 
-以out-in为例，我们希望达到的效果是当前元素离开之后，在开始新元素的过渡。
+以`out-in`为例，我们希望达到的效果是当前元素离开之后，在开始新元素的过渡。
 
 我们可以定义一个当前元素的离开钩子，在渲染其中，当需要移除 || 移动当前元素的时候，我们可以先执行当前元素的离开钩子，之后再调用新元素的进入钩子。
 
-这就实现了out-in的效果。
+这就实现了`out-in`的效果。
+
+### 渲染器处理逻辑
 
 我们可以看下渲染器中是在哪个阶段处理的。
 
-patch阶段，通过move函数来完成节点的插入。
+`patch`阶段，通过`move`函数来完成节点的插入。
 
 ```jsx
 // move & remove函数位于baseCreateRenderer函数中
@@ -1093,41 +1103,38 @@ const move = (vnode, container, anchor, moveType, parentSuspense = null) => {
   const needTransition = transition;
 
   if (needTransition) {
-    if (moveType === 0 /* ENTER */ ) {
-      transition.beforeEnter(el);
-      hostInsert(el, container, anchor);
-      queuePostRenderEffect(() => transition.enter(el), parentSuspense);
-    } else {
-      const {
-        leave,
-        delayLeave,
-        afterLeave
-      } = transition;
-			// hostInsert函数负责将el插入container
-      const remove = () => hostInsert(el, container, anchor);
+    // 省略部分代码...
+    
+    const {
+      leave,
+      delayLeave,
+      afterLeave
+    } = transition;
+		// hostInsert函数负责将el插入container
+    const remove = () => hostInsert(el, container, anchor);
 			
-			// 由performLeave函数执行leave钩子
-			// leave 钩子会取负责元素的插入与afterLeave钩子的执行
-      const performLeave = () => {
-        leave(el, () => {
-          remove();
-          afterLeave && afterLeave();
-        });
-      };
+		// 由performLeave函数执行leave钩子
+	  // leave 钩子会取负责元素的插入与afterLeave钩子的执行
+    const performLeave = () => {
+      leave(el, () => {
+        remove();
+        afterLeave && afterLeave(); // out-in模式下
+      });
+    };
 
-      if (delayLeave) {
-				// 🔴关键：delayLeave函数负责完成当前元素的插入和leave钩子的调用
-        delayLeave(el, remove, performLeave);
-      } else {
-				// 🔴关键：performLeave函数负责leave钩子的调用，最终通过leave函数完成当前元素的插入和afterLeave钩子的调用
-        performLeave();
-      }
+    if (delayLeave) {
+			// 🔴关键：delayLeave函数负责完成当前元素的插入和leave钩子的调用
+      // in-out模式下，执行delayLeave
+      delayLeave(el, remove, performLeave);
+    } else {
+		 // 🔴关键：performLeave函数负责leave钩子的调用，最终通过leave函数完成当前元素的插入和afterLeave钩子的调用
+      performLeave();
     }
   }
 };
 ```
 
-unmount阶段会执行remove函数。
+`unmount`阶段会执行`remove`函数。`remove`函数会将元素从父节点移除。
 
 ```js
 // 移除Vnode
@@ -1144,6 +1151,7 @@ const remove = vnode => {
   const performRemove = () => {
     hostRemove(el);
     if (transition && !transition.persisted && transition.afterLeave) {
+      // out-in模式下
       transition.afterLeave();
     }
   };
@@ -1162,6 +1170,7 @@ const remove = vnode => {
 
     if (delayLeave) {
 			// 🔴关键：delayLeave函数负责完成当前元素的移除和leave & afterLeave钩子的调用
+      // in-out模式下执行in-out
       delayLeave(vnode.el, performRemove, performLeave);
     } else {
 			// 🔴关键：performLeave函数完成leave钩子的调用
@@ -1180,9 +1189,13 @@ const remove = vnode => {
 
 这里只需简单知道：
 
-transition组件高度依赖于渲染器。对于添加过渡模式的元素，在动效钩子中会存在afterLeave或者delayLeave钩子，由afterLeave钩子负责当前元素先离开的效果。delayLeave钩子负责当前元素推迟离开的效果。
+`transition`组件高度依赖于渲染器。对于添加过渡模式的元素，在动效钩子中会存在`afterLeave`或者`delayLeave`钩子，由`afterLeave`钩子负责当前元素先离开的效果。`delayLeave`钩子负责当前元素推迟离开的效果。
 
-开始实现过渡效果:
+![TransitionComponent](../assets/images/transition/transition-component.png)
+
+### 新增过渡模式钩子
+
+开始实现过渡模式:
 
 ```js
 const MyTransitionBase = {
@@ -1198,13 +1211,13 @@ const MyTransitionBase = {
           // 获取新元素
           const child = children[0];
 					
-					// 解析
+					// 解析新元素的hooks
           const enterHooks = resolveTransitionHooks(child, rawProps, state, instance)
           setTransitionHooks(child, enterHooks);
 					// 获取当前元素
           const oldChild = instance.subTree;
 
-          // handle mode
+          // 处理过渡模式
           if (oldChild && (!isSameVNodeType(child, oldChild))) {
 							// 从当前元素解析动效钩子
               const leavingHooks = resolveTransitionHooks(oldChild, rawProps, state, instance);
@@ -1213,20 +1226,19 @@ const MyTransitionBase = {
               setTransitionHooks(oldChild, leavingHooks);
               
               if (mode === 'out-in') {
-									// 当前元素先进行离开过渡，完成之后新元素过渡进入。
-                  // 为当前(旧)元素新增afterLeave钩子，afterLeave的执行会使当前实例触发更新Effect
+                  // 为当前(旧)元素新增afterLeave钩子，afterLeave的执行会使当前实例触发updateEffect，进入更新阶段
                   leavingHooks.afterLeave = () => {
                       instance.update();
                   };
               } else if (mode === 'in-out') {
-									// 新元素先进行进入过渡，完成之后当前元素过渡离开。
 									// 为当前元素新增delayLeave钩子，delayLeave钩子会推迟当前元素的离开动效
 									// earlyRemove && delayedLeave 回调由渲染器传入
 									// earlyRemove负责元素的移动或者移除
-									// delayedLeave 负责leave钩子的调用
+									// delayedLeave负责leave钩子的调用
                   leavingHooks.delayLeave = (el, earlyRemove, delayedLeave) => {
-                      
+                      // 获取缓存
 											const leavingVNodesCache = getLeavingNodesForType(state, oldChild);
+                    	// 更新缓存
                       leavingVNodesCache[String(oldChild.key)] = oldChild;
                       // 为当前元素定义一个私有leave回调
                       el._leaveCb = () => {
@@ -1234,6 +1246,7 @@ const MyTransitionBase = {
                           el._leaveCb = undefined;
                           delete enterHooks.delayedLeave;
                       };
+                    	// 在新元素上绑定delayedLeave钩子，用于推迟当前元素的离场动效
                       enterHooks.delayedLeave = delayedLeave;
                   };
               }
@@ -1245,7 +1258,14 @@ const MyTransitionBase = {
 }
 ```
 
-更改useTransitionState函数
+从上面的代码可以知道，我们通过`getCurrentInstance`获取当前组件实例，从当前实例获取需要进行离场处理的当前元素。
+
+当新元素与当前元素是不同类型时，进行过渡模式的处理:
+
+- `out-in`模式下，为当前元素新增`afterLeave`钩子。`afterLeave`钩子通过手动调动`update`，最终的触发时机由`patch`逻辑决定或者作为`leave`钩子函数的回调函数，在当前元素还没有卸载时，也就是`state.isUnmounting = true`时执行。当前元素先完成离场过渡之后，新元素再开始入场过渡。
+- `in-out`模式下，为当前元素新增`delayLeave`钩子。其实是一个推迟执行的`leave`钩子，回调`earlyRemove`, `delayedLeave`回调由渲染器传入。`earlyRemove`负责节点的移动或者删除操作，`delayedLeave`是一个推迟的`leave`钩子函数。会在新元素入场前执行。
+
+更改`useTransitionState`函数
 
 ```jsx
 function useTransitionState {
@@ -1256,6 +1276,7 @@ function useTransitionState {
   }
 	// 省略部分代码...
 }
+
 // 负责获取缓存的旧vnode
 function getLeavingNodesForType(state, vnode) {
   const { leavingVNodes } = state;
@@ -1269,7 +1290,9 @@ function getLeavingNodesForType(state, vnode) {
 
 ```
 
-更改resolveTransitionHooks钩子
+从上面代码可知，在`state`中新增了`leavingVNodes`，用于记录需要进行离场过渡的`Vnode`。`getLeavingNodesForType`函数则是根据当前元素类型获取`Vnode`缓存。
+
+更改`resolveTransitionHooks`钩子，
 
 ```js
 function resolveTransitionHooks(vnode, props, state, instance) {
@@ -1277,32 +1300,33 @@ function resolveTransitionHooks(vnode, props, state, instance) {
   const key = String(vnode.key);
   const leavingVNodesCache = getLeavingNodesForType(state, vnode);
   const callHook = (hook, args) => {
-    hook && callWithAsyncErrorHandling(
-      hook,
-      instance,
-      args
-    )
-};
+    hook && hook(...args)
+	};
   const hooks = {
       mode,
       persisted,
-      beforeEnter(el) {
-          let hook = onBeforeEnter;
-          // 省略部分代码...
-
-          // 获取旧元素，先触发旧元素的leave动效
-          const leavingVNode = leavingVNodesCache[key];
-          if (leavingVNode &&
-              isSameVNodeType(vnode, leavingVNode) &&
-              leavingVNode.el._leaveCb) {
-              // 
-              leavingVNode.el._leaveCb();
-          }
-					// 再开始新元素的入场动效
-          callHook(hook, [el]);
-      },
+    	
+    	beforeEnter(el) {
+      	let hook = onBeforeEnter
+      	// 省略部分代码...
+        
+     		// 处理v-show
+      	if (el._leaveCb) {
+        	el._leaveCb(true)
+      	}
+      	// 处理具有形同key的Vnode在使用v-if的情况
+      	const leavingVNode = leavingVNodesCache[key]
+      	if (
+        	leavingVNode &&
+        	isSameVNodeType(vnode, leavingVNode) &&
+        	leavingVNode.el!._leaveCb
+      	) {
+        	leavingVNode.el!._leaveCb()
+      	}
+      	callHook(hook, [el])
+    	},
       leave(el, remove) {
-          // 省略部分代码
+          // 省略部分代码...
           const key = String(vnode.key);
           // remove回调由渲染器传入
 					// 会触发元素的移动或者移除，并执行afterLeave钩子
@@ -1318,12 +1342,19 @@ function resolveTransitionHooks(vnode, props, state, instance) {
 }
 ```
 
-
-
-至此，我们已经完成了MyTransition组件从class支持到javacsript钩子支持，再到过渡模式的支持工作。
+至此，我们已经完成了`MyTransition`组件从`class`支持到`javacsript`钩子支持，再到过渡模式的支持工作。
 
 ## 总结
 
-- nextAnimationFrame
-- 钩子与渲染器
-- 过渡模式
+通过本文，我们基本完成了一个`demo`版的`Transition`组件。`MyTransition`组件相对于`Vue`内置`Transition`组件还有很多不足之处，`Transition`组件还做了很多更细致的处理，如被`KeepAlive`包裹的组件的动效处理、使用`v-show`或者`v-if`进行切换的组件动效处理等。
+
+但`MyTransition`组件已经可以很好的帮我们了解`Transition`组件的关键逻辑：
+
+- 通过在不同的渲染阶段为组件添加动效`class`本质是通过渲染器在渲染过程中执行对应的钩子函数实现的。
+- 利用嵌套的`requestAnimationFrame`实现在下一帧中添加对应动效`class`。
+- 在`leave`阶段，通过监听`transitionend` || `animationend`事件，移除动效`class`。
+- 通过`setTimeout`操作动效的持续效果。
+- 通过拆分`Transition`与`BaseTransition`组件，做`css`动效与`JavaScript`动效兼容。
+
+- 虽然供外部使用的`JavaScript`钩子很多，但在在`BaseTransition`组件内部，也就三个：`beforeEnter`、`enter`、`leave`，其余的钩子通过逻辑判断被整合到这三个主要的钩子中。
+- 过渡模式的重要之处在于获取当前元素与新元素，当是`out-in`时为当前元素添加`afterLeave`钩子，`in-out`时，为当前元素添加`delayLeave`钩子，新元素添加`delayedLeave`钩子。
