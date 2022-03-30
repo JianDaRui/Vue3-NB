@@ -4,7 +4,7 @@
 
 本篇内容旨在通过自己实现`Transition`组件，从而了解其内部原理。
 
-> 如果你还没有使用过`Transition`组件或者对其不熟悉，那么我建议你可以先学习官方文档，写一些demo，当熟悉了`Transition`组件之后，但是又对其原理有所好奇，就可以再回来学习这篇文章。官方文档👉[传送门](https://v3.cn.vuejs.org/guide/transitions-overview.html)。
+> 如果你还没有使用过`Transition`组件或者对其不熟悉，那么我建议你可以先学习官方文档，写一些`demo`，当熟悉了`Transition`组件之后，但是又对其原理有所好奇，就可以再回来学习这篇文章。官方文档👉[传送门](https://v3.cn.vuejs.org/guide/transitions-overview.html)。
 > 
 
 ## 前言
@@ -44,13 +44,13 @@
 考虑这个问题，还需要回到`Transition`组件的核心逻辑在于：
 
 - 在组件的挂载阶段，我们需要将`enter-from`至`enter-to`阶段的过渡或者动画效果`class`附加到`DOM`元素上。
-- 在组件的卸载卸载，我们需要将`leave-from`至`leave-to`阶段的过渡或者动画效果`class`附加到`DOM`元素上。
+- 在组件的卸载阶段，我们需要将`leave-from`至`leave-to`阶段的过渡或者动画效果`class`附加到`DOM`元素上。
 
 ![WX20220313-222847@2x.png](../assets/images/transition/WX20220313-2228472x.png)
 
 那我们是否需要通过`mounted`、`unmounted` API钩子中实现`class`的移除和添加呢？
 
-答案是：其实不需要。在`Vue` 中的`Transition`组件是与渲染器的`patch`逻辑高度依赖的。
+答案：其实不需要。在`Vue` 中的`Transition`组件是与渲染器的`patch`逻辑高度依赖的。
 
 ### 渲染器处理方式
 
@@ -403,9 +403,9 @@ onLeave(el) {
 > - issue: https://github.com/vuejs/core/issues/2531
 > - 复现链接：https://codesandbox.io/s/competent-hermann-b1s5q?file=/src/App.vue
 
-其大意是：当通过`state`控制元素的`style`做隐藏或者显示时，`Transition`组件`Leave`阶段动效并没有按符合预期的效果进行转换。
+其大意是：当在初始阶段通过`state`控制元素的`style`做隐藏或者显示时，`Transition`组件`Leave`阶段动效并没有按符合预期的效果进行转换。
 
-为此我们需要在添加了`leaveFromClass`后，童工强制触发一次强制`reflow`，使 -leave-from classes可以立即生效。
+为此我们需要在添加了`leaveFromClass`后，通过强制触发一次强制`reflow`，使 `-leave-from` `classes`可以立即生效。
 
 ```jsx
 onLeave(el, done) {
@@ -439,7 +439,7 @@ onLeaveCancelled(el) {
 }
 ```
 
-自此，我们已经完成了`Enter` & `Leave`阶段的动效钩子实现。
+至此，我们已经完成了`Enter` & `Leave`阶段的动效钩子实现。
 
 接下来还需要实现`Appear`阶段的钩子函数。`Appear`钩子函数的调用逻辑为当用户为`props`配置了`appear = true`时，则会在初始渲染阶段就出发动效。
 
@@ -1051,8 +1051,6 @@ function setTransitionHooks(vnode, hooks) {
 }
 ```
 
-
-
 通过上面的代码可以知道，`JavaScript`钩子函数，主要是在`beforeEnter`、`enter`、`leave`阶段进行调用的。
 
 接下来，完成过渡模式的实现。
@@ -1344,7 +1342,7 @@ function resolveTransitionHooks(vnode, props, state, instance) {
 
 至此，我们已经完成了`MyTransition`组件从`class`支持到`javacsript`钩子支持，再到过渡模式的支持工作。
 
-## 总结
+## 总结 
 
 通过本文，我们基本完成了一个`demo`版的`Transition`组件。`MyTransition`组件相对于`Vue`内置`Transition`组件还有很多不足之处，`Transition`组件还做了很多更细致的处理，如被`KeepAlive`包裹的组件的动效处理、使用`v-show`或者`v-if`进行切换的组件动效处理等。
 
