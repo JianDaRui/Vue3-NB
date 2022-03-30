@@ -10,7 +10,7 @@
   - [第五篇——`apiInject`源码分析](<./docs/02_runtime-core/05-apiInject源码分析.md>)
   - [第六篇——`defineComponent` &`defineAsyncComponent`源码分析](<./docs/02_runtime-core/06-defineComponent&defineAsyncComponent源码分析.md>)
   - [第七篇——高阶 `API`的使用及源码分析](<./docs/02_runtime-core/07-高阶%20API.md>)
-  - [第八篇——从创建到挂载](<./docs/02_runtime-core/08-从创建到挂载.md)
+  - [第八篇——从创建到挂载](<./docs/02_runtime-core/08-从创建到挂载.md>)
   - [第九篇——渲染器`renderer`分析](<./docs/02_runtime-core/09-渲染器分析.md>)
   - [第十篇——`diff`算法图解分析](<./docs/02_runtime-core/10-Vue3%20diff算法图解分析.md>)
   - [第十一篇——`KeepAlive`使用与原理分析](<./docs/02_runtime-core/11-KeepAlive使用及原理分析.md>)

@@ -218,8 +218,8 @@ const MyTransition = defineComponent({
       },
       onEnterCancelled(el) {
 	    },
-			// Apear阶段
-			onBeforeAppear(el) {
+      // Apear阶段
+      onBeforeAppear(el) {
 			},
 			onAppear(el) {
 			},
