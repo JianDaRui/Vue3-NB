@@ -14,4 +14,4 @@
   - [第九篇——渲染器`renderer`分析](<./docs/02_runtime-core/09-渲染器分析.md>)
   - [第十篇——`diff`算法图解分析](<./docs/02_runtime-core/10-Vue3%20diff算法图解分析.md>)
   - [第十一篇——`KeepAlive`使用与原理分析](<./docs/02_runtime-core/11-KeepAlive使用及原理分析.md>)
-  - [第十二篇——手摸手实现`Transition`组件](<./docs/02_runtime-core/12-手摸手实现Transition组件.md.md>)
+  - [第十二篇——手摸手实现`Transition`组件](<./docs/02_runtime-core/12-手摸手实现Transition组件.md>)
